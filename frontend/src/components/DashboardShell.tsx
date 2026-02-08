@@ -21,6 +21,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: 'Dashboard', href: '/dashboard/admin', icon: <LayoutDashboard size={20} /> },
     { label: 'Shops', href: '/dashboard/admin/shops', icon: <Store size={20} /> },
     { label: 'Users', href: '/dashboard/admin/users', icon: <Users size={20} /> },
+    { label: 'Inventory', href: '/dashboard/admin/inventory', icon: <Package size={20} /> },
   ],
   shop_manager: [
     { label: 'Dashboard', href: '/dashboard/manager', icon: <LayoutDashboard size={20} /> },

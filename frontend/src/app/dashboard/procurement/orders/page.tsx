@@ -15,6 +15,7 @@ export default function ProcurementOrdersPage() {
   const [editForm, setEditForm] = useState({
     status: '', vendor_name: '', order_date: '', delivery_date: '',
   });
+  const [invoiceImage, setInvoiceImage] = useState<File | null>(null);
 
   const fetchData = async () => {
     const params: any = {};
@@ -28,6 +29,7 @@ export default function ProcurementOrdersPage() {
 
   const startEdit = (order: ProcurementRequest) => {
     setEditingId(order.id);
+    setInvoiceImage(null);
     setEditForm({
       status: order.status,
       vendor_name: order.vendor_name,
@@ -38,9 +40,18 @@ export default function ProcurementOrdersPage() {
 
   const handleUpdate = async (id: number) => {
     try {
-      await api.patch(`/procurement/${id}/`, editForm);
+      const fd = new FormData();
+      fd.append('status', editForm.status);
+      fd.append('vendor_name', editForm.vendor_name);
+      if (editForm.order_date) fd.append('order_date', editForm.order_date);
+      if (editForm.delivery_date) fd.append('delivery_date', editForm.delivery_date);
+      if (invoiceImage) fd.append('invoice_image', invoiceImage);
+      await api.patch(`/procurement/${id}/`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       toast.success('Updated');
       setEditingId(null);
+      setInvoiceImage(null);
       fetchData();
     } catch {
       toast.error('Update failed');
@@ -82,10 +93,14 @@ export default function ProcurementOrdersPage() {
               <p className="text-sm text-gray-500">Qty: {order.quantity}</p>
               {order.notes && <p className="text-sm text-gray-400">{order.notes}</p>}
               <p className="text-sm text-gray-400 mt-1">Requested by: {order.requested_by_name}</p>
+              {order.invoice_image && (
+                <a href={order.invoice_image} target="_blank" rel="noopener noreferrer"
+                  className="text-brand-600 text-xs hover:underline mt-1 inline-block">View Invoice</a>
+              )}
 
               {editingId === order.id && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     <select value={editForm.status}
                       onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                       className="border rounded-lg px-3 py-2 text-sm">
@@ -103,6 +118,12 @@ export default function ProcurementOrdersPage() {
                     <input type="date" value={editForm.delivery_date}
                       onChange={(e) => setEditForm({ ...editForm, delivery_date: e.target.value })}
                       className="border rounded-lg px-3 py-2 text-sm" placeholder="Delivery date" />
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Invoice Image</label>
+                      <input type="file" accept="image/*"
+                        onChange={(e) => setInvoiceImage(e.target.files?.[0] || null)}
+                        className="border rounded-lg px-3 py-1.5 text-sm w-full" />
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => handleUpdate(order.id)}

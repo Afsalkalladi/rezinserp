@@ -12,6 +12,9 @@ export default function ManagerInventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [time, setTime] = useState(
+    new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })
+  );
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<{ item: string; quantity: string }[]>([
     { item: '', quantity: '' },
@@ -43,6 +46,7 @@ export default function ManagerInventoryPage() {
     try {
       await api.post('/inventory/requests/', {
         date,
+        time,
         notes,
         items: lineItems
           .filter((l) => l.item && l.quantity)
@@ -74,10 +78,15 @@ export default function ManagerInventoryPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border rounded-xl p-6 mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Date</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm w-full" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Time</label>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
                 className="border rounded-lg px-3 py-2 text-sm w-full" required />
             </div>
             <div>
@@ -125,6 +134,7 @@ export default function ManagerInventoryPage() {
                 <div>
                   <span className="font-medium">Request #{req.id}</span>
                   <span className="text-gray-400 ml-3 text-sm">{req.date}</span>
+                  {req.time && <span className="text-gray-400 ml-2 text-sm">{req.time}</span>}
                 </div>
                 <StatusBadge status={req.status} />
               </div>

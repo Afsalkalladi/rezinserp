@@ -43,6 +43,7 @@ export interface InventoryRequest {
   requested_by: number;
   requested_by_name: string;
   date: string;
+  time: string | null;
   status: 'pending' | 'approved' | 'dispatched' | 'rejected';
   notes: string;
   items: InventoryRequestItem[];
