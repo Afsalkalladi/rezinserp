@@ -1,0 +1,30 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Django
+db.sqlite3
+*.log
+media/
+staticfiles/
+
+# Environment
+.env
+*.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+.next/
+out/
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
