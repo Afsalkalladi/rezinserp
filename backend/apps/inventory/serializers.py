@@ -28,7 +28,7 @@ class InventoryRequestSerializer(serializers.ModelSerializer):
         model = InventoryRequest
         fields = [
             'id', 'shop', 'shop_name', 'requested_by', 'requested_by_name',
-            'date', 'status', 'notes', 'items', 'created_at', 'updated_at',
+            'date', 'time', 'status', 'notes', 'items', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'requested_by', 'created_at', 'updated_at']
 
@@ -38,7 +38,7 @@ class InventoryRequestCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InventoryRequest
-        fields = ['id', 'date', 'notes', 'items']
+        fields = ['id', 'date', 'time', 'notes', 'items']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')

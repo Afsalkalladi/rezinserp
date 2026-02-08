@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from apps.permissions import IsAdminOrShopManager, IsAdminOrProcurement
 from .models import ProcurementRequest
 from .serializers import (
@@ -14,6 +15,7 @@ class ProcurementRequestViewSet(viewsets.ModelViewSet):
     Procurement Officer: view & update.
     Admin: full access.
     """
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ['status', 'shop']
     ordering_fields = ['created_at']
 

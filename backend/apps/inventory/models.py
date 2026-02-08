@@ -31,6 +31,7 @@ class InventoryRequest(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='inventory_requests'
     )
     date = models.DateField()
+    time = models.TimeField(null=True, blank=True, help_text='Time of request')
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING
     )

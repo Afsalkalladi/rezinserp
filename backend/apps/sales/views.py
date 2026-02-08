@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from apps.permissions import IsAdminOrShopManager
 from .models import DailyClosingReport
 from .serializers import DailyClosingReportSerializer, DailyClosingReportCreateSerializer
@@ -10,6 +11,7 @@ class DailyClosingReportViewSet(viewsets.ModelViewSet):
     Admin: full access.
     """
     permission_classes = [IsAdminOrShopManager]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ['shop', 'date']
     ordering_fields = ['date']
 
