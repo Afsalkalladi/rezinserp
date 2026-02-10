@@ -4,8 +4,11 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'shop_manager' | 'warehouse_manager' | 'procurement_officer' | 'worker';
+  role: 'admin' | 'shop_manager' | 'warehouse_manager' | 'procurement_officer' | 'payroll_manager' | 'worker';
   phone: string;
+  tfn_number: string;
+  mobile_number: string;
+  home_address: string;
   shop: number | null;
   shop_name: string | null;
   is_active: boolean;
@@ -25,6 +28,7 @@ export interface InventoryItem {
   id: number;
   name: string;
   unit: string;
+  price: number;
   is_active: boolean;
 }
 
@@ -46,6 +50,7 @@ export interface InventoryRequest {
   time: string | null;
   status: 'pending' | 'approved' | 'dispatched' | 'rejected';
   notes: string;
+  invoice_image: string | null;
   items: InventoryRequestItem[];
   created_at: string;
   updated_at: string;
@@ -56,17 +61,32 @@ export interface ShiftAssignment {
   worker: number;
   worker_name: string;
   role_in_shift: string;
+  start_time: string | null;
+  end_time: string | null;
 }
 
 export interface Shift {
   id: number;
   shop: number;
   shop_name: string;
+  roster: number | null;
   date: string;
   start_time: string;
   end_time: string;
   assignments: ShiftAssignment[];
   created_by: number;
+  created_at: string;
+}
+
+export interface WeeklyRoster {
+  id: number;
+  shop: number;
+  shop_name: string;
+  week_start_date: string;
+  notes: string;
+  shifts: Shift[];
+  created_by: number;
+  created_by_name: string;
   created_at: string;
 }
 
@@ -77,8 +97,9 @@ export interface TimesheetEntry {
   worker: number;
   worker_name: string;
   date: string;
-  start_time: string;
-  end_time: string;
+  is_present: boolean;
+  start_time: string | null;
+  end_time: string | null;
   hours_worked: number;
   recorded_by: number;
   created_at: string;
@@ -110,6 +131,7 @@ export interface ProcurementRequest {
   requested_by_name: string;
   item_name: string;
   quantity: string;
+  estimated_unit_price: number;
   notes: string;
   status: 'pending' | 'ordered' | 'delivered' | 'cancelled';
   vendor_name: string;
@@ -128,8 +150,8 @@ export interface Payroll {
   worker_name: string;
   shop: number;
   shop_name: string;
-  month: number;
-  year: number;
+  week_start_date: string;
+  week_end_date: string;
   hourly_rate: number;
   total_hours: number;
   total_days: number;

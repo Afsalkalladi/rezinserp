@@ -12,7 +12,7 @@ export default function AdminInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', unit: '', is_active: true });
+  const [form, setForm] = useState({ name: '', unit: '', price: '0', is_active: true });
 
   const fetchData = async () => {
     const res = await api.get('/inventory/items/');
@@ -23,7 +23,7 @@ export default function AdminInventoryPage() {
   useEffect(() => { fetchData(); }, []);
 
   const resetForm = () => {
-    setForm({ name: '', unit: '', is_active: true });
+    setForm({ name: '', unit: '', price: '0', is_active: true });
     setEditingId(null);
     setShowForm(false);
   };
@@ -31,11 +31,12 @@ export default function AdminInventoryPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = { ...form, price: Number(form.price) };
       if (editingId) {
-        await api.patch(`/inventory/items/${editingId}/`, form);
+        await api.patch(`/inventory/items/${editingId}/`, payload);
         toast.success('Item updated');
       } else {
-        await api.post('/inventory/items/', form);
+        await api.post('/inventory/items/', payload);
         toast.success('Item created');
       }
       resetForm();
@@ -47,7 +48,7 @@ export default function AdminInventoryPage() {
 
   const startEdit = (item: InventoryItem) => {
     setEditingId(item.id);
-    setForm({ name: item.name, unit: item.unit, is_active: item.is_active });
+    setForm({ name: item.name, unit: item.unit, price: String(item.price), is_active: item.is_active });
     setShowForm(true);
   };
 
@@ -91,7 +92,7 @@ export default function AdminInventoryPage() {
           <h3 className="font-medium text-gray-700">
             {editingId ? 'Edit Item' : 'Add New Item'}
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Item Name</label>
               <input
@@ -109,6 +110,19 @@ export default function AdminInventoryPage() {
                 onChange={(e) => setForm({ ...form, unit: e.target.value })}
                 className="border rounded-lg px-3 py-2 text-sm w-full"
                 placeholder="e.g. kg, pcs, litre"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Price (A$)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+                placeholder="0.00"
                 required
               />
             </div>
@@ -148,6 +162,7 @@ export default function AdminInventoryPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-500">ID</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Name</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Unit</th>
+                <th className="text-right px-6 py-3 font-medium text-gray-500">Price (A$)</th>
                 <th className="text-center px-6 py-3 font-medium text-gray-500">Status</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Actions</th>
               </tr>
@@ -158,6 +173,7 @@ export default function AdminInventoryPage() {
                   <td className="px-6 py-4 text-gray-400">{item.id}</td>
                   <td className="px-6 py-4 font-medium">{item.name}</td>
                   <td className="px-6 py-4 text-gray-600">{item.unit}</td>
+                  <td className="px-6 py-4 text-right font-medium">A${Number(item.price).toFixed(2)}</td>
                   <td className="px-6 py-4 text-center">
                     <button onClick={() => toggleActive(item)}
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${

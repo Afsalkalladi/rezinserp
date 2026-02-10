@@ -14,8 +14,14 @@ export default function ManagerPayrollPage() {
   const [loading, setLoading] = useState(true);
 
   const now = new Date();
+  // Default to this Monday
+  const d = new Date(now);
+  const day = d.getDay();
+  d.setDate(d.getDate() - ((day + 6) % 7));
+  const defaultMonday = d.toISOString().split('T')[0];
+
   const [form, setForm] = useState({
-    worker: '', month: String(now.getMonth() + 1), year: String(now.getFullYear()),
+    worker: '', week_start_date: defaultMonday,
     hourly_rate: '', bonus: '0', deductions: '0', notes: '',
   });
 
@@ -37,8 +43,7 @@ export default function ManagerPayrollPage() {
     try {
       await api.post('/payroll/', {
         worker: Number(form.worker),
-        month: Number(form.month),
-        year: Number(form.year),
+        week_start_date: form.week_start_date,
         hourly_rate: Number(form.hourly_rate),
         bonus: Number(form.bonus),
         deductions: Number(form.deductions),
@@ -81,19 +86,13 @@ export default function ManagerPayrollPage() {
                 <option key={w.id} value={w.id}>{w.first_name} {w.last_name}</option>
               ))}
             </select>
-            <select value={form.month}
-              onChange={(e) => setForm({ ...form, month: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm">
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {new Date(2000, i).toLocaleString('default', { month: 'long' })}
-                </option>
-              ))}
-            </select>
-            <input type="number" placeholder="Year" value={form.year}
-              onChange={(e) => setForm({ ...form, year: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm" required />
-            <input type="number" step="0.01" placeholder="Hourly rate" value={form.hourly_rate}
+            <div>
+              <label className="text-xs text-gray-500">Week Start (Monday)</label>
+              <input type="date" value={form.week_start_date}
+                onChange={(e) => setForm({ ...form, week_start_date: e.target.value })}
+                className="border rounded-lg px-3 py-2 text-sm w-full" required />
+            </div>
+            <input type="number" step="0.01" placeholder="Hourly rate (A$)" value={form.hourly_rate}
               onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })}
               className="border rounded-lg px-3 py-2 text-sm" required />
             <input type="number" step="0.01" placeholder="Bonus" value={form.bonus}
@@ -117,7 +116,7 @@ export default function ManagerPayrollPage() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Worker</th>
-                <th className="text-left px-6 py-3 font-medium text-gray-500">Period</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-500">Week</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Hours</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Days</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Base</th>
@@ -132,13 +131,13 @@ export default function ManagerPayrollPage() {
               {payrolls.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-medium">{p.worker_name}</td>
-                  <td className="px-6 py-4">{p.month}/{p.year}</td>
+                  <td className="px-6 py-4 text-xs">{p.week_start_date} — {p.week_end_date}</td>
                   <td className="px-6 py-4 text-right">{p.total_hours}</td>
                   <td className="px-6 py-4 text-right">{p.total_days}</td>
-                  <td className="px-6 py-4 text-right">₹{p.base_salary}</td>
-                  <td className="px-6 py-4 text-right text-green-600">₹{p.bonus}</td>
-                  <td className="px-6 py-4 text-right text-red-600">₹{p.deductions}</td>
-                  <td className="px-6 py-4 text-right font-bold">₹{p.net_salary}</td>
+                  <td className="px-6 py-4 text-right">A${p.base_salary}</td>
+                  <td className="px-6 py-4 text-right text-green-600">A${p.bonus}</td>
+                  <td className="px-6 py-4 text-right text-red-600">A${p.deductions}</td>
+                  <td className="px-6 py-4 text-right font-bold">A${p.net_salary}</td>
                   <td className="px-6 py-4 text-center"><StatusBadge status={p.status} /></td>
                   <td className="px-6 py-4">
                     {p.status === 'pending' && (

@@ -11,7 +11,7 @@ export default function ManagerProcurementPage() {
   const [requests, setRequests] = useState<ProcurementRequest[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ item_name: '', quantity: '', notes: '' });
+  const [form, setForm] = useState({ item_name: '', quantity: '', estimated_unit_price: '', vendor_name: '', notes: '' });
 
   const fetchData = async () => {
     const res = await api.get('/procurement/');
@@ -24,10 +24,13 @@ export default function ManagerProcurementPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/procurement/', form);
+      await api.post('/procurement/', {
+        ...form,
+        estimated_unit_price: form.estimated_unit_price ? Number(form.estimated_unit_price) : null,
+      });
       toast.success('Request submitted');
       setShowForm(false);
-      setForm({ item_name: '', quantity: '', notes: '' });
+      setForm({ item_name: '', quantity: '', estimated_unit_price: '', vendor_name: '', notes: '' });
       fetchData();
     } catch {
       toast.error('Failed to submit');
@@ -55,6 +58,12 @@ export default function ManagerProcurementPage() {
             <input placeholder="Quantity (e.g. 10 kg)" value={form.quantity}
               onChange={(e) => setForm({ ...form, quantity: e.target.value })}
               className="border rounded-lg px-3 py-2 text-sm" required />
+            <input type="number" step="0.01" placeholder="Est. Unit Price (A$)" value={form.estimated_unit_price}
+              onChange={(e) => setForm({ ...form, estimated_unit_price: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm" />
+            <input placeholder="Vendor name" value={form.vendor_name}
+              onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm" />
             <input placeholder="Notes" value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="border rounded-lg px-3 py-2 text-sm" />
@@ -76,9 +85,17 @@ export default function ManagerProcurementPage() {
                 <StatusBadge status={req.status} />
               </div>
               <p className="text-sm text-gray-500">Qty: {req.quantity}</p>
+              {req.estimated_unit_price > 0 && (
+                <p className="text-sm text-gray-500">Est. Price: A${req.estimated_unit_price}/unit</p>
+              )}
               {req.notes && <p className="text-sm text-gray-400">{req.notes}</p>}
               {req.vendor_name && (
                 <p className="text-sm text-gray-500 mt-1">Vendor: {req.vendor_name}</p>
+              )}
+              {req.invoice_image && (
+                <a href={req.invoice_image} target="_blank" className="text-brand-600 text-xs mt-2 inline-block hover:underline">
+                  View Invoice →
+                </a>
               )}
             </div>
           ))}

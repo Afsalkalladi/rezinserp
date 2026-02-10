@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { clsx } from 'clsx';
 import {
   LayoutDashboard, Store, Users, Package, Calendar, Clock,
-  DollarSign, ShoppingCart, Receipt, LogOut, Menu, X,
+  DollarSign, ShoppingCart, Receipt, LogOut, Menu, X, ClipboardList, FileText,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,12 +22,18 @@ const navByRole: Record<string, NavItem[]> = {
     { label: 'Shops', href: '/dashboard/admin/shops', icon: <Store size={20} /> },
     { label: 'Users', href: '/dashboard/admin/users', icon: <Users size={20} /> },
     { label: 'Inventory', href: '/dashboard/admin/inventory', icon: <Package size={20} /> },
+    { label: 'Rosters', href: '/dashboard/admin/roster', icon: <Calendar size={20} /> },
+    { label: 'Sales Reports', href: '/dashboard/admin/sales', icon: <Receipt size={20} /> },
+    { label: 'Daily Reports', href: '/dashboard/admin/reports', icon: <FileText size={20} /> },
+    { label: 'Procurement', href: '/dashboard/admin/procurement', icon: <ShoppingCart size={20} /> },
+    { label: 'Warehouse', href: '/dashboard/admin/warehouse', icon: <ClipboardList size={20} /> },
+    { label: 'Payroll', href: '/dashboard/admin/payroll', icon: <DollarSign size={20} /> },
   ],
   shop_manager: [
     { label: 'Dashboard', href: '/dashboard/manager', icon: <LayoutDashboard size={20} /> },
     { label: 'Inventory', href: '/dashboard/manager/inventory', icon: <Package size={20} /> },
-    { label: 'Shifts', href: '/dashboard/manager/shifts', icon: <Calendar size={20} /> },
-    { label: 'Timesheets', href: '/dashboard/manager/timesheets', icon: <Clock size={20} /> },
+    { label: 'Weekly Roster', href: '/dashboard/manager/roster', icon: <Calendar size={20} /> },
+    { label: 'Attendance', href: '/dashboard/manager/timesheets', icon: <ClipboardList size={20} /> },
     { label: 'Sales Report', href: '/dashboard/manager/sales', icon: <Receipt size={20} /> },
     { label: 'Procurement', href: '/dashboard/manager/procurement', icon: <ShoppingCart size={20} /> },
     { label: 'Payroll', href: '/dashboard/manager/payroll', icon: <DollarSign size={20} /> },
@@ -40,9 +46,15 @@ const navByRole: Record<string, NavItem[]> = {
     { label: 'Dashboard', href: '/dashboard/procurement', icon: <LayoutDashboard size={20} /> },
     { label: 'Orders', href: '/dashboard/procurement/orders', icon: <ShoppingCart size={20} /> },
   ],
+  payroll_manager: [
+    { label: 'Dashboard', href: '/dashboard/payrollmgr', icon: <LayoutDashboard size={20} /> },
+    { label: 'All Payroll', href: '/dashboard/payrollmgr/payroll', icon: <DollarSign size={20} /> },
+    { label: 'Workers', href: '/dashboard/payrollmgr/workers', icon: <Users size={20} /> },
+  ],
   worker: [
     { label: 'Dashboard', href: '/dashboard/worker', icon: <LayoutDashboard size={20} /> },
-    { label: 'My Shifts', href: '/dashboard/worker/shifts', icon: <Calendar size={20} /> },
+    { label: 'My Schedule', href: '/dashboard/worker/shifts', icon: <Calendar size={20} /> },
+    { label: 'My Attendance', href: '/dashboard/worker/attendance', icon: <ClipboardList size={20} /> },
     { label: 'My Salary', href: '/dashboard/worker/salary', icon: <DollarSign size={20} /> },
   ],
 };
