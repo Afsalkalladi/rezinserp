@@ -18,10 +18,10 @@ class Command(BaseCommand):
 
         # Create shops
         shop1, _ = Shop.objects.get_or_create(
-            name='Downtown Branch', defaults={'address': '123 Main St', 'phone': '555-0101'}
+            name='Downtown Branch', defaults={'address': '123 Main St, Melbourne VIC 3000', 'phone': '03-9555-0101'}
         )
         shop2, _ = Shop.objects.get_or_create(
-            name='Mall Outlet', defaults={'address': '456 Mall Rd', 'phone': '555-0102'}
+            name='Mall Outlet', defaults={'address': '456 Mall Rd, Melbourne VIC 3004', 'phone': '03-9555-0102'}
         )
 
         # Create admin
@@ -62,6 +62,15 @@ class Command(BaseCommand):
             )
             self.stdout.write(self.style.SUCCESS('  Created procurement user (procurement123)'))
 
+        # Payroll manager
+        if not User.objects.filter(username='payrollmgr').exists():
+            User.objects.create_user(
+                username='payrollmgr', password='payroll123',
+                email='payrollmgr@rezinserp.com', role='payroll_manager',
+                first_name='Payroll', last_name='Manager',
+            )
+            self.stdout.write(self.style.SUCCESS('  Created payrollmgr user (payroll123)'))
+
         # Workers
         for i in range(1, 5):
             uname = f'worker{i}'
@@ -71,17 +80,21 @@ class Command(BaseCommand):
                     username=uname, password='worker123',
                     email=f'{uname}@rezinserp.com', role='worker',
                     first_name=f'Worker', last_name=f'{i}', shop=shop,
+                    mobile_number=f'04{i}2-345-678',
+                    home_address=f'{i}0{i} Worker St, Melbourne VIC 300{i}',
                 )
                 self.stdout.write(self.style.SUCCESS(f'  Created {uname} (worker123)'))
 
-        # Inventory items
+        # Inventory items with prices
         items = [
-            ('Burger Buns', 'pcs'), ('Beef Patties', 'pcs'), ('Cheese Slices', 'pcs'),
-            ('Lettuce', 'kg'), ('Tomatoes', 'kg'), ('Onions', 'kg'),
-            ('Ketchup', 'litre'), ('Mustard', 'litre'), ('Cooking Oil', 'litre'),
-            ('French Fries', 'kg'), ('Chicken Strips', 'kg'), ('Soft Drink Syrup', 'litre'),
+            ('Burger Buns', 'pcs', '0.80'), ('Beef Patties', 'pcs', '2.50'), ('Cheese Slices', 'pcs', '0.60'),
+            ('Lettuce', 'kg', '5.00'), ('Tomatoes', 'kg', '4.50'), ('Onions', 'kg', '3.00'),
+            ('Ketchup', 'litre', '6.00'), ('Mustard', 'litre', '7.00'), ('Cooking Oil', 'litre', '4.00'),
+            ('French Fries', 'kg', '8.00'), ('Chicken Strips', 'kg', '12.00'), ('Soft Drink Syrup', 'litre', '15.00'),
         ]
-        for name, unit in items:
-            InventoryItem.objects.get_or_create(name=name, defaults={'unit': unit})
+        for name, unit, price in items:
+            InventoryItem.objects.update_or_create(
+                name=name, defaults={'unit': unit, 'price': price}
+            )
 
         self.stdout.write(self.style.SUCCESS('Database seeded successfully!'))

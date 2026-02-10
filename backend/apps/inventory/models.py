@@ -6,13 +6,17 @@ class InventoryItem(models.Model):
     """Master item catalog available for ordering from warehouse."""
     name = models.CharField(max_length=150)
     unit = models.CharField(max_length=30, help_text='e.g. kg, pcs, litre')
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Price per unit in AUD',
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['name']
 
     def __str__(self):
-        return f"{self.name} ({self.unit})"
+        return f"{self.name} ({self.unit}) - A${self.price}"
 
 
 class InventoryRequest(models.Model):
@@ -36,6 +40,9 @@ class InventoryRequest(models.Model):
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
     notes = models.TextField(blank=True)
+    invoice_image = models.ImageField(
+        upload_to='warehouse_invoices/', blank=True, null=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -12,8 +12,9 @@ class TimesheetEntry(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='timesheet_entries'
     )
     date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    is_present = models.BooleanField(default=True, help_text='Mark attendance')
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recorded_timesheets'
     )
@@ -29,6 +30,8 @@ class TimesheetEntry(models.Model):
     @property
     def hours_worked(self):
         """Calculate total hours worked as a Decimal."""
+        if not self.is_present or not self.start_time or not self.end_time:
+            return Decimal('0.00')
         from datetime import datetime, timedelta
         start = datetime.combine(self.date, self.start_time)
         end = datetime.combine(self.date, self.end_time)

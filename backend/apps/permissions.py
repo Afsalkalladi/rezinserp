@@ -24,6 +24,11 @@ class IsProcurementOfficer(BasePermission):
         return request.user.is_authenticated and request.user.role == 'procurement_officer'
 
 
+class IsPayrollManager(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'payroll_manager'
+
+
 class IsWorker(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'worker'
@@ -50,8 +55,22 @@ class IsAdminOrProcurement(BasePermission):
         )
 
 
+class IsAdminOrPayrollManager(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in (
+            'admin', 'payroll_manager'
+        )
+
+
 class IsAdminOrShopManagerOrWarehouse(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in (
             'admin', 'shop_manager', 'warehouse_manager'
+        )
+
+
+class IsAdminOrShopManagerOrPayroll(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in (
+            'admin', 'shop_manager', 'payroll_manager'
         )

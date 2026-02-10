@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate, get_user_model
 
 from apps.permissions import IsAdmin, IsAdminOrShopManager
 from .serializers import (
-    UserSerializer, UserCreateSerializer, LoginSerializer, ProfileSerializer,
+    UserSerializer, UserCreateSerializer, UserUpdateSerializer, LoginSerializer, ProfileSerializer,
 )
 
 User = get_user_model()
@@ -79,4 +79,6 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return UserCreateSerializer
+        if self.action in ('update', 'partial_update'):
+            return UserUpdateSerializer
         return UserSerializer

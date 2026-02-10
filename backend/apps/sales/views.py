@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from apps.permissions import IsAdminOrShopManager
+from rest_framework.permissions import IsAuthenticated
+from apps.permissions import IsAdmin, IsAdminOrShopManager
 from .models import DailyClosingReport
 from .serializers import DailyClosingReportSerializer, DailyClosingReportCreateSerializer
 
@@ -8,9 +9,8 @@ from .serializers import DailyClosingReportSerializer, DailyClosingReportCreateS
 class DailyClosingReportViewSet(viewsets.ModelViewSet):
     """
     Manager: create/view for own shop. One per day enforced.
-    Admin: full access.
+    Admin: full access including edit/delete.
     """
-    permission_classes = [IsAdminOrShopManager]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ['shop', 'date']
     ordering_fields = ['date']
@@ -28,3 +28,8 @@ class DailyClosingReportViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return DailyClosingReportCreateSerializer
         return DailyClosingReportSerializer
+
+    def get_permissions(self):
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAdmin()]
+        return [IsAdminOrShopManager()]

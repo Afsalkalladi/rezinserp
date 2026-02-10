@@ -3,7 +3,7 @@ from django.conf import settings
 
 
 class Payroll(models.Model):
-    """Monthly payroll record per worker."""
+    """Weekly payroll record per worker."""
 
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
@@ -15,8 +15,8 @@ class Payroll(models.Model):
     shop = models.ForeignKey(
         'shops.Shop', on_delete=models.CASCADE, related_name='payrolls'
     )
-    month = models.PositiveSmallIntegerField(help_text='1-12')
-    year = models.PositiveSmallIntegerField()
+    week_start_date = models.DateField(help_text='Start date of the pay week')
+    week_end_date = models.DateField(help_text='End date of the pay week')
     hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     total_hours = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     total_days = models.PositiveIntegerField(default=0)
@@ -35,21 +35,21 @@ class Payroll(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('worker', 'month', 'year')
-        ordering = ['-year', '-month']
+        unique_together = ('worker', 'week_start_date')
+        ordering = ['-week_start_date']
 
     def __str__(self):
-        return f"{self.worker.get_full_name()} - {self.month}/{self.year}"
+        return f"{self.worker.get_full_name()} - Week of {self.week_start_date}"
 
     def calculate_salary(self):
-        """Calculate salary from timesheet data."""
+        """Calculate salary from timesheet data for the week."""
         from apps.timesheets.models import TimesheetEntry
-        from django.db.models import Count
 
         entries = TimesheetEntry.objects.filter(
             worker=self.worker,
-            date__month=self.month,
-            date__year=self.year,
+            date__gte=self.week_start_date,
+            date__lte=self.week_end_date,
+            is_present=True,
         )
         self.total_days = entries.count()
         self.total_hours = sum(e.hours_worked for e in entries)

@@ -1,11 +1,12 @@
 from rest_framework import serializers
 from .models import InventoryItem, InventoryRequest, InventoryRequestItem
+from apps.utils.invoice import generate_invoice_image
 
 
 class InventoryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryItem
-        fields = ['id', 'name', 'unit', 'is_active']
+        fields = ['id', 'name', 'unit', 'price', 'is_active']
 
 
 class InventoryRequestItemSerializer(serializers.ModelSerializer):
@@ -28,7 +29,8 @@ class InventoryRequestSerializer(serializers.ModelSerializer):
         model = InventoryRequest
         fields = [
             'id', 'shop', 'shop_name', 'requested_by', 'requested_by_name',
-            'date', 'time', 'status', 'notes', 'items', 'created_at', 'updated_at',
+            'date', 'time', 'status', 'notes', 'invoice_image',
+            'items', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'requested_by', 'created_at', 'updated_at']
 
@@ -48,6 +50,28 @@ class InventoryRequestCreateSerializer(serializers.ModelSerializer):
             requested_by=user,
             **validated_data,
         )
+        invoice_items = []
         for item_data in items_data:
-            InventoryRequestItem.objects.create(request=request_obj, **item_data)
+            ri = InventoryRequestItem.objects.create(request=request_obj, **item_data)
+            invoice_items.append({
+                'name': ri.item.name,
+                'quantity': str(ri.quantity),
+                'unit_price': ri.item.price,  # Use actual item price
+            })
+
+        # Auto-generate invoice for warehouse order
+        try:
+            invoice = generate_invoice_image(
+                invoice_number=f"WH-{request_obj.pk:05d}",
+                date=request_obj.date,
+                shop_name=request_obj.shop.name,
+                shop_address=request_obj.shop.address,
+                items=invoice_items,
+                notes=request_obj.notes,
+                order_type='Warehouse Requisition',
+            )
+            request_obj.invoice_image.save(invoice.name, invoice, save=True)
+        except Exception:
+            pass
+
         return request_obj

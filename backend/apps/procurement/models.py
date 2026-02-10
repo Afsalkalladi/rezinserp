@@ -19,6 +19,9 @@ class ProcurementRequest(models.Model):
     )
     item_name = models.CharField(max_length=200)
     quantity = models.CharField(max_length=100)
+    estimated_unit_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, help_text='Estimated price per unit in AUD'
+    )
     notes = models.TextField(blank=True)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING

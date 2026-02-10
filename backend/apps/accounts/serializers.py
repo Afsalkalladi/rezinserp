@@ -12,7 +12,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'phone', 'shop', 'shop_name', 'is_active',
+            'role', 'phone', 'tfn_number', 'mobile_number', 'home_address',
+            'shop', 'shop_name', 'is_active',
         ]
         read_only_fields = ['id']
 
@@ -24,7 +25,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'phone', 'shop', 'password', 'is_active',
+            'role', 'phone', 'tfn_number', 'mobile_number', 'home_address',
+            'shop', 'password', 'is_active',
         ]
 
     def create(self, validated_data):
@@ -33,6 +35,29 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Update user — password is optional."""
+    password = serializers.CharField(write_only=True, min_length=6, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'role', 'phone', 'tfn_number', 'mobile_number', 'home_address',
+            'shop', 'password', 'is_active',
+        ]
+        read_only_fields = ['id']
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
 
 
 class LoginSerializer(serializers.Serializer):
@@ -47,6 +72,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'phone', 'shop', 'shop_name',
+            'role', 'phone', 'tfn_number', 'mobile_number', 'home_address',
+            'shop', 'shop_name',
         ]
         read_only_fields = ['id', 'username', 'role', 'shop']

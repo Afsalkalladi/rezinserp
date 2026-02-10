@@ -10,6 +10,7 @@ class User(AbstractUser):
         SHOP_MANAGER = 'shop_manager', 'Shop Manager'
         WAREHOUSE_MANAGER = 'warehouse_manager', 'Warehouse Manager'
         PROCUREMENT_OFFICER = 'procurement_officer', 'Procurement Officer'
+        PAYROLL_MANAGER = 'payroll_manager', 'Payroll Manager'
         WORKER = 'worker', 'Worker'
 
     role = models.CharField(
@@ -18,6 +19,9 @@ class User(AbstractUser):
         default=Role.WORKER,
     )
     phone = models.CharField(max_length=15, blank=True)
+    tfn_number = models.CharField(max_length=20, blank=True, help_text='Tax File Number')
+    mobile_number = models.CharField(max_length=15, blank=True)
+    home_address = models.TextField(blank=True)
     shop = models.ForeignKey(
         'shops.Shop',
         on_delete=models.SET_NULL,
@@ -48,6 +52,10 @@ class User(AbstractUser):
     @property
     def is_procurement_officer(self):
         return self.role == self.Role.PROCUREMENT_OFFICER
+
+    @property
+    def is_payroll_manager(self):
+        return self.role == self.Role.PAYROLL_MANAGER
 
     @property
     def is_worker(self):
