@@ -24,11 +24,14 @@ interface ShiftRow {
 
 function getWeekDates(startStr: string): string[] {
   const dates: string[] = [];
-  const start = new Date(startStr + 'T00:00:00');
+  // Parse as local date parts to avoid UTC timezone shift
+  const [y, m, d] = startStr.split('-').map(Number);
   for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
+    const dt = new Date(y, m - 1, d + i);
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    dates.push(`${yyyy}-${mm}-${dd}`);
   }
   return dates;
 }

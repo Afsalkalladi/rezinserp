@@ -4,6 +4,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.http import HttpResponse
 from django.db import transaction
+from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from datetime import timedelta, date as date_cls, datetime
+from collections import defaultdict
 from apps.permissions import IsAdminOrShopManager
 from apps.scheduling.models import Shift, ShiftAssignment
 from apps.accounts.serializers import UserSerializer
@@ -152,3 +155,77 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="daily_report_{shop.name}_{date_str}.pdf"'
         return response
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrShopManager])
+    def worker_hours(self, request):
+        """
+        Return a matrix of workers × dates with hours worked.
+        Query params: start_date, end_date (both required, YYYY-MM-DD).
+        """
+        start_str = request.query_params.get('start_date')
+        end_str = request.query_params.get('end_date')
+
+        if not start_str or not end_str:
+            return Response(
+                {'error': 'start_date and end_date parameters required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format, use YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if end_date < start_date:
+            return Response(
+                {'error': 'end_date must be >= start_date'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        entries_qs = TimesheetEntry.objects.filter(
+            date__gte=start_date, date__lte=end_date
+        ).select_related('worker')
+
+        if user.role == 'shop_manager':
+            entries_qs = entries_qs.filter(shop=user.shop)
+
+        # Build dates list
+        dates = []
+        d = start_date
+        while d <= end_date:
+            dates.append(d.isoformat())
+            d += timedelta(days=1)
+
+        # Build worker → date → entry data
+        workers_map = {}  # worker_id → { name, dates: { date → entry_data } }
+        for entry in entries_qs:
+            wid = entry.worker_id
+            if wid not in workers_map:
+                workers_map[wid] = {
+                    'id': wid,
+                    'name': entry.worker.get_full_name(),
+                    'dates': {},
+                    'total_hours': 0,
+                }
+            hours = float(entry.hours_worked)
+            workers_map[wid]['dates'][entry.date.isoformat()] = {
+                'is_present': entry.is_present,
+                'start_time': str(entry.start_time)[:5] if entry.start_time else '',
+                'end_time': str(entry.end_time)[:5] if entry.end_time else '',
+                'hours': hours,
+            }
+            workers_map[wid]['total_hours'] += hours
+
+        # Round totals
+        for w in workers_map.values():
+            w['total_hours'] = round(w['total_hours'], 2)
+
+        return Response({
+            'dates': dates,
+            'workers': list(workers_map.values()),
+        })
