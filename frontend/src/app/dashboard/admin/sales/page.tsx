@@ -3,13 +3,16 @@
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { DailyClosingReport } from '@/lib/types';
+import { DailyClosingReport, Shop } from '@/lib/types';
 import { PageHeader, EmptyState } from '@/components/ui';
 import toast from 'react-hot-toast';
 
 export default function AdminSalesPage() {
   const [reports, setReports] = useState<DailyClosingReport[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterShop, setFilterShop] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({
     cash_sales: '', digital_sales: '', online_orders: '', expenses: '', expense_notes: '',
@@ -17,9 +20,16 @@ export default function AdminSalesPage() {
 
   const fetchData = async () => {
     try {
-      const res = await api.get('/sales/');
-      const data = res.data.results ?? res.data;
+      const params: any = {};
+      if (filterShop !== 'all') params.shop = filterShop;
+      if (filterDate) params.date = filterDate;
+      const [salesRes, shopRes] = await Promise.all([
+        api.get('/sales/reports/', { params }),
+        api.get('/shops/'),
+      ]);
+      const data = salesRes.data.results ?? salesRes.data;
       setReports(Array.isArray(data) ? data : []);
+      setShops((shopRes.data.results ?? shopRes.data) || []);
     } catch (err: any) {
       toast.error('Failed to load sales reports');
       setReports([]);
@@ -28,7 +38,7 @@ export default function AdminSalesPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [filterShop, filterDate]);
 
   const startEdit = (r: DailyClosingReport) => {
     setEditingId(r.id);
@@ -43,7 +53,7 @@ export default function AdminSalesPage() {
 
   const saveEdit = async (id: number) => {
     try {
-      await api.patch(`/sales/${id}/`, {
+      await api.patch(`/sales/reports/${id}/`, {
         cash_sales: Number(editForm.cash_sales),
         digital_sales: Number(editForm.digital_sales),
         online_orders: Number(editForm.online_orders),
@@ -61,7 +71,7 @@ export default function AdminSalesPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this sales report?')) return;
     try {
-      await api.delete(`/sales/${id}/`);
+      await api.delete(`/sales/reports/${id}/`);
       toast.success('Report deleted');
       fetchData();
     } catch {
@@ -72,6 +82,27 @@ export default function AdminSalesPage() {
   return (
     <ProtectedRoute allowedRoles={['admin']}>
       <PageHeader title="All Sales Reports" />
+
+      {/* Shop and Date Filters */}
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Shop</label>
+          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm min-w-[180px]">
+            <option value="all">All Shops</option>
+            {shops.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Date</label>
+          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        {(filterShop !== 'all' || filterDate) && (
+          <button onClick={() => { setFilterShop('all'); setFilterDate(''); }}
+            className="text-xs text-red-500 hover:underline mt-5">Clear Filters</button>
+        )}
+      </div>
 
       {loading ? <div className="text-gray-400">Loading...</div> : reports.length === 0 ? (
         <EmptyState message="No sales reports yet" />

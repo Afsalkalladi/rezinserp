@@ -20,6 +20,7 @@ export default function HomePage() {
       shop_manager: '/dashboard/manager',
       warehouse_manager: '/dashboard/warehouse',
       procurement_officer: '/dashboard/procurement',
+      payroll_manager: '/dashboard/payrollmgr',
       worker: '/dashboard/worker',
     };
     router.replace(dashboardMap[user.role] || '/login');

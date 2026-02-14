@@ -11,15 +11,18 @@ export default function ManagerProcurementPage() {
   const [requests, setRequests] = useState<ProcurementRequest[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filterDate, setFilterDate] = useState<string>('');
   const [form, setForm] = useState({ item_name: '', quantity: '', estimated_unit_price: '', vendor_name: '', notes: '' });
 
   const fetchData = async () => {
-    const res = await api.get('/procurement/');
+    const params: any = {};
+    if (filterDate) params.date = filterDate;
+    const res = await api.get('/procurement/', { params });
     setRequests(res.data.results || res.data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [filterDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +51,19 @@ export default function ManagerProcurementPage() {
           </button>
         }
       />
+
+      {/* Date Filter */}
+      <div className="flex gap-3 mb-4 items-center">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Filter by Date</label>
+          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        {filterDate && (
+          <button onClick={() => setFilterDate('')}
+            className="text-xs text-red-500 hover:underline mt-5">Clear</button>
+        )}
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border rounded-xl p-6 mb-6 space-y-4">

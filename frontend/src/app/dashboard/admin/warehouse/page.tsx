@@ -3,22 +3,34 @@
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { InventoryRequest } from '@/lib/types';
+import { InventoryRequest, Shop } from '@/lib/types';
 import { PageHeader, StatusBadge, EmptyState } from '@/components/ui';
 import toast from 'react-hot-toast';
 
 export default function AdminWarehousePage() {
   const [requests, setRequests] = useState<InventoryRequest[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [filterShop, setFilterShop] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
 
   const fetchData = async () => {
-    const res = await api.get('/inventory/requests/');
-    setRequests(res.data.results || res.data);
+    try {
+      const params: any = {};
+      if (filterShop !== 'all') params.shop = filterShop;
+      if (filterDate) params.date = filterDate;
+      const [reqRes, shopRes] = await Promise.all([
+        api.get('/inventory/requests/', { params }),
+        api.get('/shops/'),
+      ]);
+      setRequests(reqRes.data.results || reqRes.data);
+      setShops((shopRes.data.results ?? shopRes.data) || []);
+    } catch { toast.error('Failed to load data'); }
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [filterShop, filterDate]);
 
   const updateStatus = async (id: number, status: string) => {
     try {
@@ -46,6 +58,27 @@ export default function AdminWarehousePage() {
   return (
     <ProtectedRoute allowedRoles={['admin']}>
       <PageHeader title="All Warehouse / Inventory Requests" />
+
+      {/* Shop and Date Filters */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Shop</label>
+          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm min-w-[180px]">
+            <option value="all">All Shops</option>
+            {shops.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Date</label>
+          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        {(filterShop !== 'all' || filterDate) && (
+          <button onClick={() => { setFilterShop('all'); setFilterDate(''); }}
+            className="text-xs text-red-500 hover:underline mt-5">Clear Filters</button>
+        )}
+      </div>
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', 'pending', 'approved', 'dispatched', 'rejected'].map((f) => (

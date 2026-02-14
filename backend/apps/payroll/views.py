@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from apps.permissions import IsAdminOrShopManager, IsAdminOrPayrollManager, IsAdminOrShopManagerOrPayroll
+from apps.permissions import IsAdminOrShopManager, IsAdminOrPayrollManager, IsAdminOrShopManagerOrPayroll, IsAdmin
 from .models import Payroll
 from .serializers import PayrollSerializer, PayrollCreateSerializer
 
@@ -36,7 +36,9 @@ class PayrollViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create',):
             return [IsAdminOrShopManager()]
-        if self.action in ('update', 'partial_update', 'destroy'):
+        if self.action in ('update', 'partial_update'):
+            return [IsAdminOrPayrollManager()]
+        if self.action in ('destroy',):
             return [IsAdminOrShopManager()]
         return [IsAuthenticated()]
 

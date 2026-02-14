@@ -20,10 +20,13 @@ export default function ManagerInventoryPage() {
     { item: '', quantity: '' },
   ]);
   const [loading, setLoading] = useState(true);
+  const [filterDate, setFilterDate] = useState<string>('');
 
   const fetchData = async () => {
+    const params: any = {};
+    if (filterDate) params.date = filterDate;
     const [reqRes, itemsRes] = await Promise.all([
-      api.get('/inventory/requests/'),
+      api.get('/inventory/requests/', { params }),
       api.get('/inventory/items/'),
     ]);
     setRequests(reqRes.data.results || reqRes.data);
@@ -31,7 +34,7 @@ export default function ManagerInventoryPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [filterDate]);
 
   const addLine = () => setLineItems([...lineItems, { item: '', quantity: '' }]);
   const removeLine = (idx: number) => setLineItems(lineItems.filter((_, i) => i !== idx));
@@ -75,6 +78,19 @@ export default function ManagerInventoryPage() {
           </button>
         }
       />
+
+      {/* Date Filter */}
+      <div className="flex gap-3 mb-4 items-center">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Filter by Date</label>
+          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        {filterDate && (
+          <button onClick={() => setFilterDate('')}
+            className="text-xs text-red-500 hover:underline mt-5">Clear</button>
+        )}
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border rounded-xl p-6 mb-6 space-y-4">

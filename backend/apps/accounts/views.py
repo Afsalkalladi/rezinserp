@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, get_user_model
 
-from apps.permissions import IsAdmin, IsAdminOrShopManager
+from apps.permissions import IsAdmin, IsAdminOrShopManager, IsAdminOrShopManagerOrPayroll
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer, LoginSerializer, ProfileSerializer,
 )
@@ -68,12 +68,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.role == 'shop_manager':
             # Managers can only see staff in their own shop
             return qs.filter(shop=user.shop)
+        if user.role == 'payroll_manager':
+            # Payroll managers can see all workers
+            return qs.all()
         return qs
 
     def get_permissions(self):
-        # Managers can list / retrieve users; only admin can create/update/delete
+        # Managers & payroll managers can list / retrieve users; only admin can create/update/delete
         if self.action in ('list', 'retrieve'):
-            return [IsAdminOrShopManager()]
+            return [IsAdminOrShopManagerOrPayroll()]
         return [IsAdmin()]
 
     def get_serializer_class(self):

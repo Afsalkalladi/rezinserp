@@ -19,7 +19,7 @@ export default function WorkerAttendancePage() {
 
   const presentCount = entries.filter((e) => e.is_present).length;
   const absentCount = entries.filter((e) => !e.is_present).length;
-  const totalHours = entries.reduce((sum, e) => sum + e.hours_worked, 0);
+  const totalHours = entries.reduce((sum, e) => sum + (Number(e.hours_worked) || 0), 0);
 
   return (
     <ProtectedRoute allowedRoles={['worker']}>
@@ -69,7 +69,7 @@ export default function WorkerAttendancePage() {
                   </td>
                   <td className="px-6 py-4">{e.start_time || '—'}</td>
                   <td className="px-6 py-4">{e.end_time || '—'}</td>
-                  <td className="px-6 py-4 text-right font-medium">{e.hours_worked}h</td>
+                  <td className="px-6 py-4 text-right font-medium">{Number(e.hours_worked).toFixed(1)}h</td>
                 </tr>
               ))}
             </tbody>

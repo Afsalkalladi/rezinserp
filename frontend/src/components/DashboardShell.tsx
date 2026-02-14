@@ -23,6 +23,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: 'Users', href: '/dashboard/admin/users', icon: <Users size={20} /> },
     { label: 'Inventory', href: '/dashboard/admin/inventory', icon: <Package size={20} /> },
     { label: 'Rosters', href: '/dashboard/admin/roster', icon: <Calendar size={20} /> },
+    { label: 'Timesheets', href: '/dashboard/admin/timesheets', icon: <Clock size={20} /> },
     { label: 'Sales Reports', href: '/dashboard/admin/sales', icon: <Receipt size={20} /> },
     { label: 'Daily Reports', href: '/dashboard/admin/reports', icon: <FileText size={20} /> },
     { label: 'Procurement', href: '/dashboard/admin/procurement', icon: <ShoppingCart size={20} /> },

@@ -18,14 +18,23 @@ class TimesheetEntrySerializer(serializers.ModelSerializer):
 
 
 class TimesheetEntryCreateSerializer(serializers.ModelSerializer):
+    shop = serializers.PrimaryKeyRelatedField(required=False, queryset=TimesheetEntry._meta.get_field('shop').related_model.objects.all())
+
     class Meta:
         model = TimesheetEntry
-        fields = ['id', 'worker', 'date', 'is_present', 'start_time', 'end_time']
+        fields = ['id', 'shop', 'worker', 'date', 'is_present', 'start_time', 'end_time']
 
     def create(self, validated_data):
         user = self.context['request'].user
+        if user.role == 'admin' and 'shop' in validated_data:
+            shop = validated_data.pop('shop')
+        elif user.role == 'admin':
+            # Resolve shop from worker
+            shop = validated_data['worker'].shop
+        else:
+            shop = user.shop
         return TimesheetEntry.objects.create(
-            shop=user.shop,
+            shop=shop,
             recorded_by=user,
             **validated_data,
         )
@@ -34,9 +43,13 @@ class TimesheetEntryCreateSerializer(serializers.ModelSerializer):
 class BulkTimesheetEntrySerializer(serializers.Serializer):
     """Accept a list of entries for bulk attendance logging."""
     entries = serializers.ListField(child=serializers.DictField(), min_length=1)
+    shop = serializers.IntegerField(required=False, help_text='Shop ID (required for admin)')
 
     def create(self, validated_data):
+        from apps.shops.models import Shop
+        from apps.accounts.models import User as UserModel
         user = self.context['request'].user
+        shop_id = validated_data.get('shop')
         results = []
         for entry in validated_data['entries']:
             worker_id = entry.get('worker')
@@ -54,12 +67,22 @@ class BulkTimesheetEntrySerializer(serializers.Serializer):
             if not worker_id or not date:
                 continue
 
+            # Determine shop
+            if user.role == 'admin':
+                if shop_id:
+                    shop = Shop.objects.get(id=shop_id)
+                else:
+                    worker = UserModel.objects.get(id=worker_id)
+                    shop = worker.shop
+            else:
+                shop = user.shop
+
             # Update or create
             obj, created = TimesheetEntry.objects.update_or_create(
                 worker_id=worker_id,
                 date=date,
                 defaults={
-                    'shop': user.shop,
+                    'shop': shop,
                     'is_present': is_present,
                     'start_time': start_time if is_present else None,
                     'end_time': end_time if is_present else None,

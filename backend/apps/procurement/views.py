@@ -24,6 +24,10 @@ class ProcurementRequestViewSet(viewsets.ModelViewSet):
         qs = ProcurementRequest.objects.select_related(
             'shop', 'requested_by', 'handled_by'
         )
+        # Date filter on created_at
+        date_param = self.request.query_params.get('date')
+        if date_param:
+            qs = qs.filter(created_at__date=date_param)
         if user.role == 'shop_manager':
             return qs.filter(shop=user.shop)
         if user.role == 'procurement_officer':

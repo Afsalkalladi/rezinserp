@@ -53,14 +53,17 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
     def roster_workers(self, request):
         """Return workers assigned via roster for a given date."""
         date = request.query_params.get('date')
+        shop_id = request.query_params.get('shop')
         if not date:
             return Response({'error': 'date parameter required'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
-        # Get shifts for this date in manager's shop (or all for admin)
+        # Get shifts for this date in manager's shop (or specific shop for admin)
         shifts_qs = Shift.objects.filter(date=date)
         if user.role == 'shop_manager':
             shifts_qs = shifts_qs.filter(shop=user.shop)
+        elif user.role == 'admin' and shop_id:
+            shifts_qs = shifts_qs.filter(shop_id=shop_id)
 
         assignments = ShiftAssignment.objects.filter(
             shift__in=shifts_qs
@@ -86,6 +89,8 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
         entries_qs = TimesheetEntry.objects.filter(date=date)
         if user.role == 'shop_manager':
             entries_qs = entries_qs.filter(shop=user.shop)
+        elif user.role == 'admin' and shop_id:
+            entries_qs = entries_qs.filter(shop_id=shop_id)
         existing = {}
         for e in entries_qs:
             existing[e.worker_id] = {
@@ -122,7 +127,7 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrShopManager])
     def daily_report(self, request):
-        """Generate a daily shop report as a PDF."""
+        """Generate a comprehensive daily shop report as a PDF."""
         date_str = request.query_params.get('date')
         shop_id = request.query_params.get('shop')
 
@@ -146,15 +151,127 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
         else:
             return Response({'error': 'shop parameter required for admin'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Timesheet entries
         entries = TimesheetEntry.objects.filter(
             shop=shop, date=report_date
         ).select_related('worker').order_by('worker__first_name')
 
-        pdf_bytes = generate_daily_shop_report(shop, report_date, list(entries))
+        # Procurement orders for this shop/date
+        from apps.procurement.models import ProcurementRequest
+        procurement_orders = list(ProcurementRequest.objects.filter(
+            shop=shop, created_at__date=report_date
+        ).select_related('requested_by'))
+
+        # Warehouse/inventory orders for this shop/date
+        from apps.inventory.models import InventoryRequest
+        warehouse_orders = list(InventoryRequest.objects.filter(
+            shop=shop, date=report_date
+        ).select_related('requested_by').prefetch_related('items__item'))
+
+        # Daily closing report
+        from apps.sales.models import DailyClosingReport
+        closing_report = DailyClosingReport.objects.filter(
+            shop=shop, date=report_date
+        ).select_related('submitted_by').first()
+
+        pdf_bytes = generate_daily_shop_report(
+            shop, report_date, list(entries),
+            procurement_orders=procurement_orders,
+            warehouse_orders=warehouse_orders,
+            closing_report=closing_report,
+        )
 
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="daily_report_{shop.name}_{date_str}.pdf"'
         return response
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrShopManager],
+            url_path='daily_report_data')
+    def daily_report_data(self, request):
+        """Return comprehensive daily report data as JSON for inline display."""
+        date_str = request.query_params.get('date')
+        shop_id = request.query_params.get('shop')
+
+        if not date_str:
+            return Response({'error': 'date parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from datetime import date as date_cls
+        try:
+            report_date = date_cls.fromisoformat(date_str)
+        except ValueError:
+            return Response({'error': 'Invalid date format'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if user.role == 'shop_manager':
+            shop = user.shop
+        elif shop_id:
+            try:
+                shop = Shop.objects.get(id=shop_id)
+            except Shop.DoesNotExist:
+                return Response({'error': 'Shop not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'error': 'shop parameter required for admin'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Timesheet entries
+        entries = TimesheetEntry.objects.filter(
+            shop=shop, date=report_date
+        ).select_related('worker').order_by('worker__first_name')
+        timesheet_data = [{
+            'id': e.id, 'worker_name': e.worker.get_full_name(),
+            'is_present': e.is_present,
+            'start_time': str(e.start_time)[:5] if e.start_time else None,
+            'end_time': str(e.end_time)[:5] if e.end_time else None,
+            'hours_worked': str(e.hours_worked),
+        } for e in entries]
+
+        # Procurement orders
+        from apps.procurement.models import ProcurementRequest
+        procurement_data = [{
+            'id': p.id, 'item_name': p.item_name, 'quantity': p.quantity,
+            'estimated_unit_price': str(p.estimated_unit_price),
+            'status': p.status, 'vendor_name': p.vendor_name,
+            'requested_by_name': p.requested_by.get_full_name() if p.requested_by else '',
+        } for p in ProcurementRequest.objects.filter(
+            shop=shop, created_at__date=report_date
+        ).select_related('requested_by')]
+
+        # Warehouse orders
+        from apps.inventory.models import InventoryRequest
+        warehouse_data = [{
+            'id': r.id, 'status': r.status,
+            'requested_by_name': r.requested_by.get_full_name() if r.requested_by else '',
+            'notes': r.notes,
+            'items': [{'name': ri.item.name, 'quantity': str(ri.quantity), 'unit': ri.item.unit}
+                      for ri in r.items.all()],
+        } for r in InventoryRequest.objects.filter(
+            shop=shop, date=report_date
+        ).select_related('requested_by').prefetch_related('items__item')]
+
+        # Daily closing
+        from apps.sales.models import DailyClosingReport
+        cr = DailyClosingReport.objects.filter(
+            shop=shop, date=report_date
+        ).select_related('submitted_by').first()
+        closing_data = None
+        if cr:
+            closing_data = {
+                'id': cr.id, 'cash_sales': str(cr.cash_sales),
+                'digital_sales': str(cr.digital_sales),
+                'online_orders': str(cr.online_orders),
+                'expenses': str(cr.expenses), 'expense_notes': cr.expense_notes,
+                'total_sales': str(cr.total_sales), 'net_revenue': str(cr.net_revenue),
+                'submitted_by_name': cr.submitted_by.get_full_name() if cr.submitted_by else '',
+                'bill_image': cr.bill_image.url if cr.bill_image else None,
+            }
+
+        return Response({
+            'shop_name': shop.name,
+            'date': date_str,
+            'timesheets': timesheet_data,
+            'procurement_orders': procurement_data,
+            'warehouse_orders': warehouse_data,
+            'closing_report': closing_data,
+        })
 
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrShopManager])
     def worker_hours(self, request):
@@ -191,8 +308,11 @@ class TimesheetEntryViewSet(viewsets.ModelViewSet):
             date__gte=start_date, date__lte=end_date
         ).select_related('worker')
 
+        shop_id = request.query_params.get('shop')
         if user.role == 'shop_manager':
             entries_qs = entries_qs.filter(shop=user.shop)
+        elif user.role == 'admin' and shop_id:
+            entries_qs = entries_qs.filter(shop_id=shop_id)
 
         # Build dates list
         dates = []
