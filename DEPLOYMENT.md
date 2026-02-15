@@ -22,6 +22,12 @@
    - `CLOUDINARY_CLOUD_NAME` → your Cloudinary cloud name
    - `CLOUDINARY_API_KEY` → your Cloudinary API key
    - `CLOUDINARY_API_SECRET` → your Cloudinary API secret
+   - `SUPERUSER_PASSWORD` → (optional) change from default `admin123`
+
+**Note:** A default superuser is created automatically on first deploy:
+- **Username:** `admin` (change via `SUPERUSER_USERNAME` env var)
+- **Password:** `admin123` (change via `SUPERUSER_PASSWORD` env var)
+- **⚠️ Change the password immediately after first login!**
 
 ### Option B: Manual Setup
 1. Create a **PostgreSQL** database on Render (free tier).
@@ -40,12 +46,7 @@
    | `CLOUDINARY_API_KEY` | Your Cloudinary API key |
    | `CLOUDINARY_API_SECRET` | Your Cloudinary API secret |
 
-### After deploying, seed initial data:
-```bash
-# From Render Shell (or local with DATABASE_URL pointing to Render DB)
-python manage.py createsuperuser
-python manage.py seed_data  # if you have the seed command
-```
+**Note:** A default superuser (`admin`/`admin123`) is created automatically on first deploy. Change the password after logging in!
 
 ---
 
@@ -68,7 +69,8 @@ python manage.py seed_data  # if you have the seed command
 ## 3. Post-Deployment Checklist
 
 - [ ] Backend health: visit `https://YOUR-BACKEND.onrender.com/api/` — should return API root
-- [ ] Login works: frontend → login page → enter credentials
+- [ ] Login works: frontend → login page → use **username:** `admin` **password:** `admin123`
+- [ ] **⚠️ Change default password** immediately via admin panel
 - [ ] CORS: no browser console errors about blocked requests
 - [ ] Cloudinary: upload a bill image via manager → check it appears
 - [ ] Database: verify migrations ran (check Render deploy logs)

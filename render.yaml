@@ -10,7 +10,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate && gunicorn config.wsgi --bind 0.0.0.0:$PORT
+    startCommand: python manage.py migrate && python manage.py ensure_superuser && gunicorn config.wsgi --bind 0.0.0.0:$PORT
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -32,6 +32,12 @@ services:
         sync: false
       - key: PYTHON_VERSION
         value: "3.12.8"
+      - key: SUPERUSER_USERNAME
+        value: "admin"
+      - key: SUPERUSER_PASSWORD
+        value: "admin123"
+      - key: SUPERUSER_EMAIL
+        value: "admin@rezinserp.com"
 
 databases:
   - name: rezinserp-db
