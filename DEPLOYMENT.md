@@ -1,56 +1,167 @@
-# RezinsERP Deployment Guide
+# Rezins ERP — Heroku Deployment Guide
+
+> **Stack**: Django 5 backend (API + Admin) · Next.js 14 frontend · PostgreSQL
+
+---
 
 ## Architecture
-- **Frontend**: Next.js on **Vercel**
-- **Backend**: Django REST on **Render** (free tier for testing)
-- **Database**: PostgreSQL on Render
-- **Media/Images**: Cloudinary
+
+| Component | Hosting | Plan |
+|-----------|---------|------|
+| Backend (Django API + Admin panel) | **Heroku** | Basic / Eco dynos |
+| Database (PostgreSQL) | **Heroku Postgres** | Essential-0 |
+| Frontend (Next.js) | **Vercel** (unchanged) | Free / Pro |
+| Media/Images | **Cloudinary** | Free tier |
+
+Since the backend lives in the `backend/` subdirectory of a monorepo, we use the
+**subdir buildpack** to tell Heroku where to find the code.
 
 ---
 
-## 1. Backend — Deploy to Render
+## Prerequisites
 
-### Option A: Blueprint (Recommended)
-1. Push your code to a GitHub repo.
-2. Go to [Render Dashboard](https://dashboard.render.com/).
-3. Click **New → Blueprint** and connect your repo.
-4. Render will read `render.yaml` from the repo root and create:
-   - A **Web Service** (`rezinserp-backend`)
-   - A **PostgreSQL Database** (`rezinserp-db`)
-5. After creation, go to the web service **Environment** tab and set these values manually:
-   - `CORS_ALLOWED_ORIGINS` → `https://YOUR-APP.vercel.app` (your Vercel URL)
-   - `CLOUDINARY_CLOUD_NAME` → your Cloudinary cloud name
-   - `CLOUDINARY_API_KEY` → your Cloudinary API key
-   - `CLOUDINARY_API_SECRET` → your Cloudinary API secret
-   - `SUPERUSER_PASSWORD` → (optional) change from default `admin123`
-
-**Note:** A default superuser is created automatically on first deploy:
-- **Username:** `admin` (change via `SUPERUSER_USERNAME` env var)
-- **Password:** `admin123` (change via `SUPERUSER_PASSWORD` env var)
-- **⚠️ Change the password immediately after first login!**
-
-### Option B: Manual Setup
-1. Create a **PostgreSQL** database on Render (free tier).
-2. Create a **Web Service** → connect your repo → set root directory to `backend`.
-3. **Build Command**: `pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate`
-4. **Start Command**: `gunicorn config.wsgi --bind 0.0.0.0:$PORT`
-5. Set environment variables:
-   | Variable | Value |
-   |----------|-------|
-   | `SECRET_KEY` | Generate a random string |
-   | `DEBUG` | `False` |
-   | `DATABASE_URL` | Copy Internal Database URL from your Render PostgreSQL |
-   | `ALLOWED_HOSTS` | `.onrender.com` |
-   | `CORS_ALLOWED_ORIGINS` | `https://YOUR-APP.vercel.app` |
-   | `CLOUDINARY_CLOUD_NAME` | Your Cloudinary cloud name |
-   | `CLOUDINARY_API_KEY` | Your Cloudinary API key |
-   | `CLOUDINARY_API_SECRET` | Your Cloudinary API secret |
-
-**Note:** A default superuser (`admin`/`admin123`) is created automatically on first deploy. Change the password after logging in!
+1. [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli) installed
+2. Logged in: `heroku login`
+3. Git repo committed & pushed
 
 ---
 
-## 2. Frontend — Deploy to Vercel
+## Step-by-Step Deployment
+
+### 1. Create the Heroku App
+
+```bash
+heroku create rezinserp-backend
+```
+
+### 2. Set the Subdirectory Buildpack
+
+Because the Django project is inside `backend/`, we need the **subdir buildpack**
+to run *before* the Python buildpack:
+
+```bash
+heroku buildpacks:clear -a rezinserp-backend
+
+# First: subdir buildpack (tells Heroku to cd into backend/)
+heroku buildpacks:add -i 1 https://github.com/timanovsky/subdir-heroku-buildpack -a rezinserp-backend
+
+# Second: official Python buildpack
+heroku buildpacks:add -i 2 heroku/python -a rezinserp-backend
+```
+
+### 3. Set the Project Subdirectory
+
+```bash
+heroku config:set PROJECT_PATH=backend -a rezinserp-backend
+```
+
+### 4. Add Heroku Postgres
+
+```bash
+heroku addons:create heroku-postgresql:essential-0 -a rezinserp-backend
+```
+
+This automatically sets `DATABASE_URL`. Confirm with:
+```bash
+heroku config -a rezinserp-backend | grep DATABASE
+```
+
+### 5. Set Environment Variables
+
+```bash
+heroku config:set \
+  SECRET_KEY="$(python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')" \
+  DEBUG=False \
+  ALLOWED_HOSTS=".herokuapp.com" \
+  CORS_ALLOWED_ORIGINS="https://your-frontend.vercel.app" \
+  DJANGO_SUPERUSER_USERNAME=admin \
+  DJANGO_SUPERUSER_EMAIL=admin@rezinserp.com \
+  DJANGO_SUPERUSER_PASSWORD=YourStrongPasswordHere \
+  -a rezinserp-backend
+```
+
+> **Important**: Replace `YourStrongPasswordHere` with a real password and
+> `https://your-frontend.vercel.app` with your actual Vercel URL.
+
+*(Optional)* If you use Cloudinary for images:
+```bash
+heroku config:set \
+  CLOUDINARY_CLOUD_NAME=your_cloud_name \
+  CLOUDINARY_API_KEY=your_key \
+  CLOUDINARY_API_SECRET=your_secret \
+  -a rezinserp-backend
+```
+
+### 6. Deploy
+
+```bash
+git push heroku main
+```
+
+> If your default branch is `master`:
+> `git push heroku master`
+
+**What happens on deploy:**
+1. Subdir buildpack sets `backend/` as the working directory
+2. Python buildpack installs `requirements.txt`
+3. Heroku auto-runs `collectstatic`
+4. The **release** phase (from Procfile) runs:
+   - `python manage.py migrate` — applies DB migrations
+   - `python manage.py create_superuser_if_none` — creates admin user from env vars
+5. The **web** dyno starts: `gunicorn config.wsgi`
+
+### 7. Verify
+
+```bash
+# Check logs
+heroku logs --tail -a rezinserp-backend
+
+# Open admin panel
+heroku open /admin/ -a rezinserp-backend
+```
+
+Login with the superuser credentials you set in Step 5.
+
+---
+
+## Accessing the Admin Panel
+
+The Django admin is available at:
+```
+https://rezinserp-backend-XXXXX.herokuapp.com/admin/
+```
+
+Login with:
+- **Username**: value of `DJANGO_SUPERUSER_USERNAME` (default: `admin`)
+- **Password**: value of `DJANGO_SUPERUSER_PASSWORD`
+
+---
+
+## Superuser Management
+
+### Auto-creation (recommended)
+A superuser is created automatically on every deploy via the release phase.
+It only creates one if no superuser exists. Configure via env vars:
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `DJANGO_SUPERUSER_USERNAME` | `admin` | Superuser username |
+| `DJANGO_SUPERUSER_EMAIL` | `admin@rezinserp.com` | Superuser email |
+| `DJANGO_SUPERUSER_PASSWORD` | *(required)* | Superuser password |
+
+### Manual creation
+```bash
+heroku run python manage.py createsuperuser -a rezinserp-backend
+```
+
+### Reset password
+```bash
+heroku run python manage.py changepassword admin -a rezinserp-backend
+```
+
+---
+
+## Frontend — Deploy to Vercel
 
 1. Go to [Vercel Dashboard](https://vercel.com/dashboard).
 2. Click **Add New → Project** and import your GitHub repo.
@@ -59,55 +170,71 @@
 5. Add **Environment Variable**:
    | Variable | Value |
    |----------|-------|
-   | `NEXT_PUBLIC_API_URL` | `https://rezinserp-backend.onrender.com/api` |
-   
-   (Replace with your actual Render service URL.)
+   | `NEXT_PUBLIC_API_URL` | `https://rezinserp-backend-XXXXX.herokuapp.com/api` |
+
+   (Replace with your actual Heroku app URL.)
 6. Click **Deploy**.
 
 ---
 
-## 3. Post-Deployment Checklist
+## Common Operations
 
-- [ ] Backend health: visit `https://YOUR-BACKEND.onrender.com/api/` — should return API root
-- [ ] Login works: frontend → login page → use **username:** `admin` **password:** `admin123`
-- [ ] **⚠️ Change default password** immediately via admin panel
+### Run Django shell
+```bash
+heroku run python manage.py shell -a rezinserp-backend
+```
+
+### Run migrations manually
+```bash
+heroku run python manage.py migrate -a rezinserp-backend
+```
+
+### Seed demo data
+```bash
+heroku run python manage.py seed_data -a rezinserp-backend
+```
+
+### View logs
+```bash
+heroku logs --tail -a rezinserp-backend
+```
+
+### Scale dynos
+```bash
+heroku ps:scale web=1 -a rezinserp-backend
+```
+
+---
+
+## Post-Deployment Checklist
+
+- [ ] Backend health: visit `https://YOUR-BACKEND.herokuapp.com/api/` — should return API root
+- [ ] Admin panel: visit `https://YOUR-BACKEND.herokuapp.com/admin/` — login works
+- [ ] Login works: frontend → login page → enter credentials
 - [ ] CORS: no browser console errors about blocked requests
 - [ ] Cloudinary: upload a bill image via manager → check it appears
-- [ ] Database: verify migrations ran (check Render deploy logs)
+- [ ] Database: verify migrations ran (check `heroku logs`)
 
 ---
 
-## 4. Auto-Save Daily Reports (Cron)
+## Cost Estimate (Heroku)
 
-The management command `save_daily_reports` generates PDFs and uploads to Cloudinary.
-
-### On Render (Cron Job):
-1. Go to Render → **New → Cron Job**.
-2. Connect your repo, root directory: `backend`.
-3. **Command**: `python manage.py save_daily_reports`
-4. **Schedule**: `0 22 * * *` (runs daily at 10 PM UTC — adjust for your timezone).
-5. Set the same environment variables as the web service.
-
-### Local testing:
-```bash
-cd backend
-python manage.py save_daily_reports              # yesterday's report
-python manage.py save_daily_reports --date 2025-01-15  # specific date
-```
+| Resource | Plan | Cost/month |
+|----------|------|------------|
+| Dyno (web) | Eco | ~$5 |
+| Dyno (web) | Basic | ~$7 |
+| PostgreSQL | Essential-0 | ~$5 |
+| **Total** | | **~$10–12/mo** |
 
 ---
 
-## 5. Switching to Heroku Later
+## Troubleshooting
 
-The `Procfile` and `runtime.txt` are already configured for Heroku.
-
-```bash
-heroku create rezinserp-backend
-heroku addons:create heroku-postgresql:essential-0
-heroku config:set SECRET_KEY=... DEBUG=False ALLOWED_HOSTS=.herokuapp.com
-heroku config:set CORS_ALLOWED_ORIGINS=https://your-app.vercel.app
-heroku config:set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...
-git subtree push --prefix backend heroku main
-```
-
-Update `NEXT_PUBLIC_API_URL` in Vercel to the Heroku URL.
+| Issue | Fix |
+|-------|-----|
+| `No module named 'config'` | Ensure `PROJECT_PATH=backend` is set |
+| `relation does not exist` | Run `heroku run python manage.py migrate` |
+| Static files 404 | Ensure whitenoise is in middleware & run `collectstatic` |
+| CORS errors | Check `CORS_ALLOWED_ORIGINS` matches your Vercel URL exactly |
+| Superuser not created | Check `DJANGO_SUPERUSER_PASSWORD` is set in config vars |
+| H10 App crashed | Check `heroku logs --tail` for Python errors |
