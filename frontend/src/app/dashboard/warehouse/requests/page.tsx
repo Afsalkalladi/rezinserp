@@ -54,7 +54,9 @@ export default function WarehouseRequestsPage() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <span className="font-medium">#{req.id} — {req.shop_name}</span>
-                  <span className="text-gray-400 ml-3 text-sm">{req.date}</span>                  {req.time && <span className=\"text-gray-400 ml-2 text-sm\">{req.time}</span>}                  <span className="text-gray-400 ml-2 text-sm">by {req.requested_by_name}</span>
+                  <span className="text-gray-400 ml-3 text-sm">{req.date}</span>
+                  {req.time && <span className="text-gray-400 ml-2 text-sm">{req.time}</span>}
+                  <span className="text-gray-400 ml-2 text-sm">by {req.requested_by_name}</span>
                 </div>
                 <StatusBadge status={req.status} />
               </div>
