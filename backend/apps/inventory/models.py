@@ -3,12 +3,21 @@ from django.conf import settings
 
 
 class InventoryItem(models.Model):
-    """Master item catalog available for ordering from warehouse."""
+    """Master item catalog available for ordering."""
+
+    class Category(models.TextChoices):
+        WAREHOUSE = 'warehouse', 'Warehouse'
+        PROCUREMENT = 'procurement', 'Procurement'
+
     name = models.CharField(max_length=150)
     unit = models.CharField(max_length=30, help_text='e.g. kg, pcs, litre')
     price = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
-        help_text='Price per unit in AUD',
+        help_text='Default price per unit in AUD',
+    )
+    category = models.CharField(
+        max_length=20, choices=Category.choices, default=Category.WAREHOUSE,
+        help_text='Which ordering system this item belongs to',
     )
     is_active = models.BooleanField(default=True)
 

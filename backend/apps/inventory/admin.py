@@ -7,8 +7,10 @@ class InventoryRequestItemInline(admin.TabularInline):
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'unit', 'is_active']
-    list_filter = ['is_active']
+    list_display = ['name', 'unit', 'price', 'category', 'is_active']
+    list_filter = ['is_active', 'category']
+    list_editable = ['price', 'is_active']
+    search_fields = ['name']
 
 @admin.register(InventoryRequest)
 class InventoryRequestAdmin(admin.ModelAdmin):

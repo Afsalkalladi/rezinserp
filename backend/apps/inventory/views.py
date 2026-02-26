@@ -11,14 +11,27 @@ from .serializers import (
 
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """Manage master item catalog. Admin can CRUD. Others can list."""
-    queryset = InventoryItem.objects.all()
     serializer_class = InventoryItemSerializer
     search_fields = ['name']
+    filterset_fields = ['is_active', 'category']
+
+    def get_queryset(self):
+        return InventoryItem.objects.all()
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return [IsAdminOrShopManagerOrWarehouse()]
         return [IsAdmin()]
+
+    def perform_destroy(self, instance):
+        """Soft-delete: deactivate instead of deleting if item has history."""
+        from .models import InventoryRequestItem
+        has_history = InventoryRequestItem.objects.filter(item=instance).exists()
+        if has_history:
+            instance.is_active = False
+            instance.save()
+        else:
+            instance.delete()
 
 
 class InventoryRequestViewSet(viewsets.ModelViewSet):

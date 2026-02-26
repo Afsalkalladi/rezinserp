@@ -12,18 +12,22 @@ export default function AdminInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', unit: '', price: '0', is_active: true });
+  const [form, setForm] = useState({ name: '', unit: '', price: '0', is_active: true, category: 'warehouse' });
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchData = async () => {
-    const res = await api.get('/inventory/items/');
+    const params: any = {};
+    if (filterCategory !== 'all') params.category = filterCategory;
+    const res = await api.get('/inventory/items/', { params });
     setItems(res.data.results || res.data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [filterCategory]);
 
   const resetForm = () => {
-    setForm({ name: '', unit: '', price: '0', is_active: true });
+    setForm({ name: '', unit: '', price: '0', is_active: true, category: 'warehouse' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -48,7 +52,13 @@ export default function AdminInventoryPage() {
 
   const startEdit = (item: InventoryItem) => {
     setEditingId(item.id);
-    setForm({ name: item.name, unit: item.unit, price: String(item.price), is_active: item.is_active });
+    setForm({
+      name: item.name,
+      unit: item.unit,
+      price: String(item.price),
+      is_active: item.is_active,
+      category: item.category || 'warehouse',
+    });
     setShowForm(true);
   };
 
@@ -56,7 +66,7 @@ export default function AdminInventoryPage() {
     if (!confirm('Are you sure you want to delete this item?')) return;
     try {
       await api.delete(`/inventory/items/${id}/`);
-      toast.success('Item deleted');
+      toast.success('Item deleted / deactivated');
       fetchData();
     } catch {
       toast.error('Failed to delete');
@@ -72,6 +82,10 @@ export default function AdminInventoryPage() {
       toast.error('Failed to update');
     }
   };
+
+  const filtered = searchTerm
+    ? items.filter((it) => it.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    : items;
 
   return (
     <ProtectedRoute allowedRoles={['admin']}>
@@ -92,7 +106,7 @@ export default function AdminInventoryPage() {
           <h3 className="font-medium text-gray-700">
             {editingId ? 'Edit Item' : 'Add New Item'}
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Item Name</label>
               <input
@@ -126,6 +140,17 @@ export default function AdminInventoryPage() {
                 required
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Category</label>
+              <select
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+              >
+                <option value="warehouse">Warehouse</option>
+                <option value="procurement">Procurement (Supplier)</option>
+              </select>
+            </div>
             <div className="flex items-end">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -150,10 +175,29 @@ export default function AdminInventoryPage() {
         </form>
       )}
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Category</label>
+          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm min-w-[160px]">
+            <option value="all">All Categories</option>
+            <option value="warehouse">Warehouse</option>
+            <option value="procurement">Procurement</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Search</label>
+          <input placeholder="Search items..." value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm min-w-[200px]" />
+        </div>
+      </div>
+
       {loading ? (
         <div className="text-gray-400">Loading...</div>
-      ) : items.length === 0 ? (
-        <EmptyState message="No inventory items yet" />
+      ) : filtered.length === 0 ? (
+        <EmptyState message="No inventory items found" />
       ) : (
         <div className="bg-white rounded-xl border overflow-x-auto">
           <table className="w-full text-sm">
@@ -162,17 +206,27 @@ export default function AdminInventoryPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-500">ID</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Name</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Unit</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-500">Category</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Price (A$)</th>
                 <th className="text-center px-6 py-3 font-medium text-gray-500">Status</th>
                 <th className="text-right px-6 py-3 font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              {filtered.map((item) => (
+                <tr key={item.id} className={`hover:bg-gray-50 ${!item.is_active ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4 text-gray-400">{item.id}</td>
                   <td className="px-6 py-4 font-medium">{item.name}</td>
                   <td className="px-6 py-4 text-gray-600">{item.unit}</td>
+                  <td className="px-6 py-4">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      item.category === 'procurement'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {item.category === 'procurement' ? 'Supplier' : 'Warehouse'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-right font-medium">A${Number(item.price).toFixed(2)}</td>
                   <td className="px-6 py-4 text-center">
                     <button onClick={() => toggleActive(item)}

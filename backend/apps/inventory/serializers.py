@@ -6,7 +6,7 @@ from apps.utils.invoice import generate_invoice_image
 class InventoryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryItem
-        fields = ['id', 'name', 'unit', 'price', 'is_active']
+        fields = ['id', 'name', 'unit', 'price', 'category', 'is_active']
 
 
 class InventoryRequestItemSerializer(serializers.ModelSerializer):
@@ -52,12 +52,15 @@ class InventoryRequestCreateSerializer(serializers.ModelSerializer):
         )
         invoice_items = []
         for item_data in items_data:
-            ri = InventoryRequestItem.objects.create(request=request_obj, **item_data)
-            invoice_items.append({
-                'name': ri.item.name,
-                'quantity': str(ri.quantity),
-                'unit_price': ri.item.price,  # Use actual item price
-            })
+            # Skip items with quantity 0 or less
+            qty = item_data.get('quantity', 0)
+            if qty is not None and float(qty) > 0:
+                ri = InventoryRequestItem.objects.create(request=request_obj, **item_data)
+                invoice_items.append({
+                    'name': ri.item.name,
+                    'quantity': str(ri.quantity),
+                    'unit_price': ri.item.price,
+                })
 
         # Auto-generate invoice for warehouse order
         try:

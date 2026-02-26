@@ -9,7 +9,7 @@
 | Component | Hosting | Plan |
 |-----------|---------|------|
 | Backend (Django API + Admin panel) | **Heroku** | Basic / Eco dynos |
-| Database (PostgreSQL) | **Heroku Postgres** | Essential-0 |
+| Database (PostgreSQL) | **Supabase** | Free / Pro |
 | Frontend (Next.js) | **Vercel** (unchanged) | Free / Pro |
 | Media/Images | **Cloudinary** | Free tier |
 
@@ -55,33 +55,28 @@ heroku buildpacks:add -i 2 heroku/python -a rezinserp-backend
 heroku config:set PROJECT_PATH=backend -a rezinserp-backend
 ```
 
-### 4. Add Heroku Postgres
 
-```bash
-heroku addons:create heroku-postgresql:essential-0 -a rezinserp-backend
-```
 
-This automatically sets `DATABASE_URL`. Confirm with:
-```bash
-heroku config -a rezinserp-backend | grep DATABASE
-```
 
-### 5. Set Environment Variables
+
 
 ```bash
 heroku config:set \
-  SECRET_KEY="$(python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')" \
+  ALLOWED_HOSTS=".herokuapp.com,.onrender.com" \
+  CLOUDINARY_API_KEY=484884532192248 \
+  CLOUDINARY_API_SECRET=IOpHOtIDslmGs29dxVVaIEWt62o \
+  CLOUDINARY_CLOUD_NAME=dya4czh4y \
+  CORS_ALLOWED_ORIGINS="https://rezinserp.vercel.app" \
+    DATABASE_URL="postgresql://postgres:6w+gEmVhks7WB6S@db.bghkfrjlolxsvcanlyvw.supabase.co:5432/postgres" \
   DEBUG=False \
-  ALLOWED_HOSTS=".herokuapp.com" \
-  CORS_ALLOWED_ORIGINS="https://your-frontend.vercel.app" \
-  DJANGO_SUPERUSER_USERNAME=admin \
-  DJANGO_SUPERUSER_EMAIL=admin@rezinserp.com \
-  DJANGO_SUPERUSER_PASSWORD=YourStrongPasswordHere \
+  SECRET_KEY="django-insecure-mvp-dev-key-change-in-production-2024" \
+  SUPERUSER_EMAIL=admin@gmail.com \
+  SUPERUSER_PASSWORD=admin123 \
+  SUPERUSER_USERNAME=admin \
   -a rezinserp-backend
 ```
 
-> **Important**: Replace `YourStrongPasswordHere` with a real password and
-> `https://your-frontend.vercel.app` with your actual Vercel URL.
+> **Note**: These values match your current environment. Update as needed for production security.
 
 *(Optional)* If you use Cloudinary for images:
 ```bash
@@ -92,7 +87,7 @@ heroku config:set \
   -a rezinserp-backend
 ```
 
-### 6. Deploy
+### 4. Deploy
 
 ```bash
 git push heroku main
@@ -106,8 +101,8 @@ git push heroku main
 2. Python buildpack installs `requirements.txt`
 3. Heroku auto-runs `collectstatic`
 4. The **release** phase (from Procfile) runs:
-   - `python manage.py migrate` — applies DB migrations
-   - `python manage.py create_superuser_if_none` — creates admin user from env vars
+  - `python manage.py migrate` — applies DB migrations (ensure your Supabase connection string is set in `DATABASE_URL`)
+  - `python manage.py create_superuser_if_none` — creates admin user from env vars
 5. The **web** dyno starts: `gunicorn config.wsgi`
 
 ### 7. Verify
@@ -145,9 +140,9 @@ It only creates one if no superuser exists. Configure via env vars:
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `DJANGO_SUPERUSER_USERNAME` | `admin` | Superuser username |
-| `DJANGO_SUPERUSER_EMAIL` | `admin@rezinserp.com` | Superuser email |
-| `DJANGO_SUPERUSER_PASSWORD` | *(required)* | Superuser password |
+| `SUPERUSER_USERNAME` | `admin` | Superuser username |
+| `SUPERUSER_EMAIL` | `admin@gmail.com` | Superuser email |
+| `SUPERUSER_PASSWORD` | *(required)* | Superuser password |
 
 ### Manual creation
 ```bash
@@ -213,18 +208,18 @@ heroku ps:scale web=1 -a rezinserp-backend
 - [ ] Login works: frontend → login page → enter credentials
 - [ ] CORS: no browser console errors about blocked requests
 - [ ] Cloudinary: upload a bill image via manager → check it appears
-- [ ] Database: verify migrations ran (check `heroku logs`)
+- [ ] Database: verify migrations ran (check `heroku logs`). Ensure Supabase is connected and accessible.
 
 ---
 
-## Cost Estimate (Heroku)
+## Cost Estimate (Heroku + Supabase)
 
 | Resource | Plan | Cost/month |
 |----------|------|------------|
 | Dyno (web) | Eco | ~$5 |
 | Dyno (web) | Basic | ~$7 |
-| PostgreSQL | Essential-0 | ~$5 |
-| **Total** | | **~$10–12/mo** |
+| Supabase (PostgreSQL) | Free / Pro | $0+ |
+| **Total** | | **~$5–12/mo + Supabase** |
 
 ---
 

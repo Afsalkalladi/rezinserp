@@ -11,7 +11,8 @@ class TimesheetEntrySerializer(serializers.ModelSerializer):
         model = TimesheetEntry
         fields = [
             'id', 'shop', 'shop_name', 'worker', 'worker_name',
-            'date', 'is_present', 'start_time', 'end_time', 'hours_worked',
+            'date', 'is_present', 'scheduled_start', 'scheduled_end',
+            'start_time', 'end_time', 'hours_worked',
             'recorded_by', 'created_at',
         ]
         read_only_fields = ['id', 'recorded_by', 'created_at']

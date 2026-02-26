@@ -13,8 +13,18 @@ class TimesheetEntry(models.Model):
     )
     date = models.DateField()
     is_present = models.BooleanField(default=True, help_text='Mark attendance')
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
+    scheduled_start = models.TimeField(
+        null=True, blank=True, help_text='Scheduled start from roster'
+    )
+    scheduled_end = models.TimeField(
+        null=True, blank=True, help_text='Scheduled end from roster'
+    )
+    start_time = models.TimeField(
+        null=True, blank=True, help_text='Actual start time'
+    )
+    end_time = models.TimeField(
+        null=True, blank=True, help_text='Actual end time'
+    )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recorded_timesheets'
     )

@@ -1,73 +1,87 @@
 'use client';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import { WeeklyRoster, User } from '@/lib/types';
 import { PageHeader, EmptyState } from '@/components/ui';
 import toast from 'react-hot-toast';
 
-interface WorkerAssignment {
-  worker_id: string;
-  worker_name: string;
+// ── Shift template definitions ──
+const SHIFT_TEMPLATES = [
+  { type: 'opening' as const, label: 'Opening', start: '08:00', end: '13:00', color: 'bg-amber-100 border-amber-300 text-amber-800' },
+  { type: 'afternoon' as const, label: 'Afternoon', start: '15:00', end: '20:00', color: 'bg-purple-100 border-purple-300 text-purple-800' },
+  { type: 'custom' as const, label: 'Custom', start: '09:00', end: '17:00', color: 'bg-blue-100 border-blue-300 text-blue-800' },
+];
+
+const SHIFT_COLORS: Record<string, string> = {
+  opening: 'bg-amber-100 border-amber-300 text-amber-800',
+  afternoon: 'bg-purple-100 border-purple-300 text-purple-800',
+  custom: 'bg-blue-100 border-blue-300 text-blue-800',
+};
+
+interface CellShift {
+  shift_type: 'opening' | 'afternoon' | 'custom';
   start_time: string;
   end_time: string;
-  role_in_shift: string;
 }
 
-interface ShiftRow {
-  date: string;
-  start_time: string;
-  end_time: string;
-  assignments: WorkerAssignment[];
+type GridData = Record<string, Record<string, CellShift | null>>; // workerId -> date -> shift
+
+function getMonday(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const day = dt.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  return localDateStr(dt);
+}
+
+function localDateStr(dt: Date): string {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
 function getWeekDates(startStr: string): string[] {
-  const dates: string[] = [];
-  // Parse as local date parts to avoid UTC timezone shift
   const [y, m, d] = startStr.split('-').map(Number);
-  for (let i = 0; i < 7; i++) {
+  return Array.from({ length: 7 }, (_, i) => {
     const dt = new Date(y, m - 1, d + i);
-    const yyyy = dt.getFullYear();
-    const mm = String(dt.getMonth() + 1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
-    dates.push(`${yyyy}-${mm}-${dd}`);
-  }
-  return dates;
+    return localDateStr(dt);
+  });
 }
 
-function getDayName(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-au', { weekday: 'short' });
+function getDayLabel(dateStr: string): { day: string; date: string } {
+  const dt = new Date(dateStr + 'T00:00:00');
+  return {
+    day: dt.toLocaleDateString('en-au', { weekday: 'short' }).toUpperCase(),
+    date: `${dt.getDate()}/${dt.getMonth() + 1}`,
+  };
 }
 
 export default function ManagerRosterPage() {
   const [rosters, setRosters] = useState<WeeklyRoster[]>([]);
   const [workers, setWorkers] = useState<User[]>([]);
-  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingStatus, setEditingStatus] = useState<string>('draft');
 
-  // Default to tomorrow
+  // Week navigation
   const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultStart = tomorrow.toISOString().split('T')[0];
-
-  const [weekStart, setWeekStart] = useState(defaultStart);
+  const mondayStr = getMonday(localDateStr(today));
+  const [weekStart, setWeekStart] = useState(mondayStr);
   const [notes, setNotes] = useState('');
-  const [shifts, setShifts] = useState<ShiftRow[]>([]);
+  const weekDates = getWeekDates(weekStart);
 
-  useEffect(() => {
-    const dates = getWeekDates(weekStart);
-    setShifts(dates.map((d) => ({
-      date: d,
-      start_time: '09:00',
-      end_time: '17:00',
-      assignments: [],
-    })));
-  }, [weekStart]);
+  // Grid: workerId -> date -> shift
+  const [grid, setGrid] = useState<GridData>({});
 
-  const fetchData = async () => {
+  // Drag state
+  const [dragging, setDragging] = useState<string | null>(null);
+
+  // Inline edit
+  const [editCell, setEditCell] = useState<{ workerId: string; date: string } | null>(null);
+
+  const fetchData = useCallback(async () => {
     try {
       const [rosterRes, usersRes] = await Promise.all([
         api.get('/scheduling/rosters/'),
@@ -81,124 +95,199 @@ export default function ManagerRosterPage() {
       toast.error('Failed to load data');
     }
     setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Initialize empty grid when workers change or editor opens
+  useEffect(() => {
+    if (!showEditor) return;
+    const newGrid: GridData = {};
+    workers.forEach((w) => {
+      newGrid[String(w.id)] = {};
+      weekDates.forEach((d) => {
+        newGrid[String(w.id)][d] = null;
+      });
+    });
+    setGrid(newGrid);
+  }, [workers, weekStart, showEditor]);
+
+  const navigateWeek = (offset: number) => {
+    const [y, m, d] = weekStart.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + offset * 7);
+    setWeekStart(localDateStr(dt));
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  const updateShift = (idx: number, field: keyof ShiftRow, value: any) => {
-    const updated = [...shifts];
-    (updated[idx] as any)[field] = value;
-    setShifts(updated);
-  };
-
-  const toggleWorker = (shiftIdx: number, workerId: string) => {
-    const updated = [...shifts];
-    const assign = updated[shiftIdx].assignments;
-    const existing = assign.findIndex(a => a.worker_id === workerId);
-    if (existing >= 0) {
-      updated[shiftIdx].assignments = assign.filter((_, i) => i !== existing);
-    } else {
-      const w = workers.find(w => String(w.id) === workerId);
-      updated[shiftIdx].assignments = [...assign, {
-        worker_id: workerId,
-        worker_name: w ? `${w.first_name} ${w.last_name}` : '',
-        start_time: updated[shiftIdx].start_time,
-        end_time: updated[shiftIdx].end_time,
-        role_in_shift: 'general',
-      }];
-    }
-    setShifts(updated);
-  };
-
-  const updateAssignment = (shiftIdx: number, assignIdx: number, field: keyof WorkerAssignment, value: string) => {
-    const updated = [...shifts];
-    updated[shiftIdx].assignments = updated[shiftIdx].assignments.map((a, i) =>
-      i === assignIdx ? { ...a, [field]: value } : a
-    );
-    setShifts(updated);
+  const startNewRoster = () => {
+    setEditingId(null);
+    setEditingStatus('draft');
+    setNotes('');
+    setShowEditor(true);
   };
 
   const startEdit = (roster: WeeklyRoster) => {
     setEditingId(roster.id);
+    setEditingStatus(roster.status);
     setWeekStart(roster.week_start_date);
     setNotes(roster.notes || '');
+    setShowEditor(true);
 
-    const dates = getWeekDates(roster.week_start_date);
-    const shiftRows: ShiftRow[] = dates.map((d) => {
-      const existing = roster.shifts.find((s) => s.date === d);
-      return {
-        date: d,
-        start_time: existing ? existing.start_time.slice(0, 5) : '09:00',
-        end_time: existing ? existing.end_time.slice(0, 5) : '17:00',
-        assignments: existing
-          ? existing.assignments.map((a) => ({
-              worker_id: String(a.worker),
-              worker_name: a.worker_name || '',
-              start_time: a.start_time ? a.start_time.slice(0, 5) : (existing.start_time?.slice(0, 5) || '09:00'),
-              end_time: a.end_time ? a.end_time.slice(0, 5) : (existing.end_time?.slice(0, 5) || '17:00'),
-              role_in_shift: a.role_in_shift || 'general',
-            }))
-          : [],
-      };
-    });
-    setShifts(shiftRows);
-    setShowForm(true);
+    // Populate grid from roster data
+    setTimeout(() => {
+      const dates = getWeekDates(roster.week_start_date);
+      const newGrid: GridData = {};
+      workers.forEach((w) => {
+        newGrid[String(w.id)] = {};
+        dates.forEach((d) => {
+          newGrid[String(w.id)][d] = null;
+        });
+      });
+
+      roster.shifts.forEach((shift) => {
+        shift.assignments.forEach((a) => {
+          const wId = String(a.worker);
+          if (!newGrid[wId]) {
+            newGrid[wId] = {};
+            dates.forEach((d) => { newGrid[wId][d] = null; });
+          }
+          newGrid[wId][shift.date] = {
+            shift_type: shift.shift_type || 'custom',
+            start_time: (a.start_time || shift.start_time || '09:00').slice(0, 5),
+            end_time: (a.end_time || shift.end_time || '17:00').slice(0, 5),
+          };
+        });
+      });
+      setGrid(newGrid);
+    }, 100);
   };
 
-  const cancelForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setNotes('');
-    setWeekStart(defaultStart);
+  // ── Drag & Drop handlers ──
+  const handleDragStart = (e: React.DragEvent, shiftType: string) => {
+    setDragging(shiftType);
+    e.dataTransfer.setData('text/plain', shiftType);
+    e.dataTransfer.effectAllowed = 'copy';
   };
 
-  const buildPayload = () => {
-    return shifts
-      .filter((s) => s.assignments.length > 0)
-      .map((s) => ({
-        date: s.date,
-        start_time: s.start_time,
-        end_time: s.end_time,
-        assignments: s.assignments.map((a) => ({
-          worker: Number(a.worker_id),
-          role_in_shift: a.role_in_shift || 'general',
-          start_time: a.start_time,
-          end_time: a.end_time,
-        })),
-      }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
 
+  const handleDrop = (e: React.DragEvent, workerId: string, date: string) => {
+    e.preventDefault();
+    const shiftType = e.dataTransfer.getData('text/plain');
+    const template = SHIFT_TEMPLATES.find((t) => t.type === shiftType);
+    if (!template) return;
+
+    setGrid((prev) => ({
+      ...prev,
+      [workerId]: {
+        ...prev[workerId],
+        [date]: {
+          shift_type: template.type,
+          start_time: template.start,
+          end_time: template.end,
+        },
+      },
+    }));
+    setDragging(null);
+  };
+
+  const removeShift = (workerId: string, date: string) => {
+    setGrid((prev) => ({
+      ...prev,
+      [workerId]: { ...prev[workerId], [date]: null },
+    }));
+    setEditCell(null);
+  };
+
+  const updateCellTime = (workerId: string, date: string, field: 'start_time' | 'end_time', value: string) => {
+    setGrid((prev) => ({
+      ...prev,
+      [workerId]: {
+        ...prev[workerId],
+        [date]: prev[workerId]?.[date] ? { ...prev[workerId][date]!, [field]: value } : null,
+      },
+    }));
+  };
+
+  // Build payload from grid
+  const buildPayload = () => {
+    const shiftsMap: Record<string, { date: string; shift_type: string; start_time: string; end_time: string; assignments: any[] }> = {};
+
+    Object.entries(grid).forEach(([workerId, dates]) => {
+      Object.entries(dates).forEach(([date, cell]) => {
+        if (!cell) return;
+        const key = `${date}_${cell.shift_type}`;
+        if (!shiftsMap[key]) {
+          shiftsMap[key] = {
+            date,
+            shift_type: cell.shift_type,
+            start_time: cell.start_time,
+            end_time: cell.end_time,
+            assignments: [],
+          };
+        }
+        shiftsMap[key].assignments.push({
+          worker: Number(workerId),
+          role_in_shift: 'general',
+          start_time: cell.start_time,
+          end_time: cell.end_time,
+        });
+      });
+    });
+
+    return Object.values(shiftsMap);
+  };
+
+  const handleSave = async () => {
     const shiftsPayload = buildPayload();
     if (shiftsPayload.length === 0) {
-      toast.error('Assign at least one worker to a shift');
+      toast.error('Add at least one shift before saving');
       return;
     }
 
     try {
       if (editingId) {
-        // Update existing roster
         await api.put(`/scheduling/rosters/${editingId}/`, {
           notes,
           shifts: shiftsPayload,
         });
         toast.success('Roster updated');
       } else {
-        // Create new roster
         await api.post('/scheduling/rosters/', {
           week_start_date: weekStart,
           notes,
           shifts: shiftsPayload,
         });
-        toast.success('Weekly roster created');
+        toast.success('Roster created');
       }
-      cancelForm();
+      setShowEditor(false);
+      setEditingId(null);
       fetchData();
     } catch (err: any) {
       const msg = err?.response?.data;
       toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg) || 'Failed');
+    }
+  };
+
+  const handlePublish = async (rosterId: number) => {
+    try {
+      await api.post(`/scheduling/rosters/${rosterId}/publish/`);
+      toast.success('Roster published! Attendance entries auto-created.');
+      fetchData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to publish');
+    }
+  };
+
+  const handleUnpublish = async (rosterId: number) => {
+    try {
+      await api.post(`/scheduling/rosters/${rosterId}/unpublish/`);
+      toast.success('Roster unpublished');
+      fetchData();
+    } catch {
+      toast.error('Failed to unpublish');
     }
   };
 
@@ -213,151 +302,247 @@ export default function ManagerRosterPage() {
     }
   };
 
+  // ── Coverage summary ──
+  const getCoverage = (date: string) => {
+    let opening = 0, afternoon = 0, custom = 0;
+    Object.values(grid).forEach((dates) => {
+      const cell = dates[date];
+      if (cell?.shift_type === 'opening') opening++;
+      else if (cell?.shift_type === 'afternoon') afternoon++;
+      else if (cell?.shift_type === 'custom') custom++;
+    });
+    return { opening, afternoon, custom, total: opening + afternoon + custom };
+  };
+
   return (
     <ProtectedRoute allowedRoles={['shop_manager']}>
       <PageHeader
         title="Weekly Roster"
         action={
-          <button onClick={() => { if (showForm) cancelForm(); else setShowForm(true); }}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">
-            {showForm ? 'Cancel' : '+ Create Roster'}
+          <button
+            onClick={() => { if (showEditor) { setShowEditor(false); setEditingId(null); } else startNewRoster(); }}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700"
+          >
+            {showEditor ? 'Cancel' : '+ Create Roster'}
           </button>
         }
       />
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white border rounded-xl p-6 mb-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Week Starting Date</label>
-              <input type="date" value={weekStart}
-                onChange={(e) => setWeekStart(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm w-full mt-1"
-                disabled={!!editingId}
-                required />
+      {showEditor && (
+        <div className="bg-white border rounded-xl p-6 mb-6">
+          {/* Header: week nav + notes */}
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg" disabled={!!editingId}>&lt;</button>
+              <div className="text-center">
+                <div className="text-sm font-semibold">
+                  {new Date(weekDates[0] + 'T00:00:00').toLocaleDateString('en-au', { month: 'long', year: 'numeric' })}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {weekDates[0]} — {weekDates[6]}
+                </div>
+              </div>
+              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg" disabled={!!editingId}>&gt;</button>
             </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-600">Notes</label>
-              <input placeholder="Optional notes..." value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm w-full mt-1" />
-            </div>
+            <input
+              placeholder="Notes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px]"
+            />
+            {editingStatus === 'published' && (
+              <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">PUBLISHED</span>
+            )}
           </div>
 
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-gray-700">Shift Schedule</h3>
-            {shifts.map((shift, idx) => (
-              <div key={shift.date} className="border rounded-lg p-4">
-                <div className="flex items-center gap-4 mb-3">
-                  <span className="font-medium text-sm w-28">
-                    {getDayName(shift.date)} — {shift.date}
-                  </span>
-                  <label className="text-xs text-gray-400">Default time:</label>
-                  <input type="time" value={shift.start_time}
-                    onChange={(e) => updateShift(idx, 'start_time', e.target.value)}
-                    className="border rounded px-2 py-1 text-sm" />
-                  <span className="text-gray-400">to</span>
-                  <input type="time" value={shift.end_time}
-                    onChange={(e) => updateShift(idx, 'end_time', e.target.value)}
-                    className="border rounded px-2 py-1 text-sm" />
-                </div>
-                {/* Worker toggle buttons */}
-                <div className="flex gap-2 flex-wrap mb-3">
-                  {workers.map((w) => (
-                    <button key={w.id} type="button"
-                      onClick={() => toggleWorker(idx, String(w.id))}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                        shift.assignments.some(a => a.worker_id === String(w.id))
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}>
-                      {w.first_name} {w.last_name}
-                    </button>
-                  ))}
-                  {workers.length === 0 && (
-                    <span className="text-xs text-gray-400">No workers available</span>
-                  )}
-                </div>
-                {/* Per-worker individual time assignments */}
-                {shift.assignments.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Individual Hours</p>
-                    {shift.assignments.map((a, aIdx) => {
-                      const w = workers.find(w => String(w.id) === a.worker_id);
-                      return (
-                        <div key={a.worker_id} className="flex items-center gap-3">
-                          <span className="text-sm font-medium w-36 truncate">
-                            {w ? `${w.first_name} ${w.last_name}` : a.worker_name}
-                          </span>
-                          <input type="time" value={a.start_time}
-                            onChange={(e) => updateAssignment(idx, aIdx, 'start_time', e.target.value)}
-                            className="border rounded px-2 py-1 text-sm w-28" />
-                          <span className="text-gray-400 text-xs">to</span>
-                          <input type="time" value={a.end_time}
-                            onChange={(e) => updateAssignment(idx, aIdx, 'end_time', e.target.value)}
-                            className="border rounded px-2 py-1 text-sm w-28" />
-                          <select value={a.role_in_shift}
-                            onChange={(e) => updateAssignment(idx, aIdx, 'role_in_shift', e.target.value)}
-                            className="border rounded px-2 py-1 text-xs w-28">
-                            <option value="general">General</option>
-                            <option value="cashier">Cashier</option>
-                            <option value="cook">Cook</option>
-                            <option value="counter">Counter</option>
-                            <option value="cleaner">Cleaner</option>
-                          </select>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+          {/* Draggable shift templates */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs font-medium text-gray-500">Drag to assign:</span>
+            {SHIFT_TEMPLATES.map((tpl) => (
+              <div
+                key={tpl.type}
+                draggable
+                onDragStart={(e) => handleDragStart(e, tpl.type)}
+                className={`px-4 py-2 rounded-lg border-2 border-dashed cursor-grab text-xs font-semibold ${tpl.color} hover:shadow-md transition select-none`}
+              >
+                {tpl.label}
+                <div className="text-[10px] font-normal opacity-70">{tpl.start} – {tpl.end}</div>
               </div>
             ))}
           </div>
 
-          <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg text-sm">
-            {editingId ? 'Update Roster' : 'Create Roster'}
-          </button>
-        </form>
+          {/* Weekly grid */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left px-3 py-3 font-medium text-gray-500 min-w-[160px] sticky left-0 bg-gray-50 z-10">
+                    Employee
+                  </th>
+                  {weekDates.map((d) => {
+                    const label = getDayLabel(d);
+                    const coverage = getCoverage(d);
+                    return (
+                      <th key={d} className="text-center px-2 py-2 font-medium text-gray-500 min-w-[130px]">
+                        <div className="text-xs">{label.day}</div>
+                        <div className="text-[10px] text-gray-400">{label.date}</div>
+                        {coverage.total > 0 && (
+                          <div className="text-[9px] text-gray-400 mt-1">
+                            {coverage.total} staff
+                          </div>
+                        )}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {workers.map((w) => (
+                  <tr key={w.id} className="hover:bg-gray-50/50">
+                    <td className="px-3 py-3 font-medium sticky left-0 bg-white z-10 border-r">
+                      <div className="text-sm">{w.first_name} {w.last_name}</div>
+                    </td>
+                    {weekDates.map((d) => {
+                      const cell = grid[String(w.id)]?.[d];
+                      const isEditing = editCell?.workerId === String(w.id) && editCell?.date === d;
+
+                      return (
+                        <td
+                          key={d}
+                          className={`px-1 py-1 text-center border ${dragging ? 'bg-gray-50 border-dashed border-gray-300' : ''}`}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, String(w.id), d)}
+                        >
+                          {cell ? (
+                            <div
+                              className={`rounded-lg p-2 border ${SHIFT_COLORS[cell.shift_type] || 'bg-gray-100'} cursor-pointer relative group`}
+                              onClick={() => setEditCell({ workerId: String(w.id), date: d })}
+                            >
+                              <div className="text-[10px] font-bold uppercase">
+                                {cell.shift_type === 'opening' ? 'Opening' : cell.shift_type === 'afternoon' ? 'Afternoon' : 'Custom'}
+                              </div>
+                              {isEditing ? (
+                                <div className="mt-1 space-y-1" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="time"
+                                    value={cell.start_time}
+                                    onChange={(e) => updateCellTime(String(w.id), d, 'start_time', e.target.value)}
+                                    className="w-full text-[10px] border rounded px-1 py-0.5"
+                                  />
+                                  <input
+                                    type="time"
+                                    value={cell.end_time}
+                                    onChange={(e) => updateCellTime(String(w.id), d, 'end_time', e.target.value)}
+                                    className="w-full text-[10px] border rounded px-1 py-0.5"
+                                  />
+                                  <button
+                                    onClick={() => removeShift(String(w.id), d)}
+                                    className="text-red-500 text-[9px] hover:underline"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] mt-0.5 opacity-80">
+                                  {cell.start_time} – {cell.end_time}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="h-16 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center">
+                              <span className="text-[10px] text-gray-300">Drop here</span>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {workers.length === 0 && (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              No workers found for this shop. Add workers first.
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 mt-6">
+            <button onClick={handleSave} className="bg-brand-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-brand-700">
+              {editingId ? 'Update Roster' : 'Save as Draft'}
+            </button>
+            {editingId && editingStatus === 'draft' && (
+              <button
+                onClick={() => handlePublish(editingId)}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-green-700 flex items-center gap-2"
+              >
+                Publish Schedule
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
-      {loading ? <div className="text-gray-400">Loading...</div> : rosters.length === 0 ? (
-        <EmptyState message="No weekly rosters yet" />
-      ) : (
+      {/* ── Roster list ── */}
+      {loading ? <div className="text-gray-400">Loading...</div> : rosters.length === 0 && !showEditor ? (
+        <EmptyState message="No weekly rosters yet. Create one to start scheduling." />
+      ) : !showEditor && (
         <div className="space-y-6">
           {rosters.map((roster) => (
             <div key={roster.id} className="bg-white border rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold">Week of {roster.week_start_date}</h3>
-                  <p className="text-xs text-gray-400">Created by {roster.created_by_name}</p>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <h3 className="font-semibold">Week of {roster.week_start_date}</h3>
+                    <p className="text-xs text-gray-400">Created by {roster.created_by_name}</p>
+                  </div>
+                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                    roster.status === 'published'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {roster.status === 'published' ? 'Published' : 'Draft'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
                   {roster.notes && <p className="text-sm text-gray-500 italic">{roster.notes}</p>}
-                  <button onClick={() => startEdit(roster)}
-                    className="text-brand-600 text-xs font-medium hover:underline">Edit</button>
-                  <button onClick={() => handleDelete(roster.id)}
-                    className="text-red-600 text-xs font-medium hover:underline">Delete</button>
+                  {roster.status === 'draft' && (
+                    <>
+                      <button onClick={() => startEdit(roster)} className="text-brand-600 text-xs font-medium hover:underline">Edit</button>
+                      <button onClick={() => handlePublish(roster.id)} className="text-green-600 text-xs font-medium hover:underline">Publish</button>
+                    </>
+                  )}
+                  {roster.status === 'published' && (
+                    <button onClick={() => handleUnpublish(roster.id)} className="text-orange-600 text-xs font-medium hover:underline">Unpublish</button>
+                  )}
+                  <button onClick={() => handleDelete(roster.id)} className="text-red-600 text-xs font-medium hover:underline">Delete</button>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-                {roster.shifts.map((shift) => (
-                  <div key={shift.id} className="border rounded-lg p-3 text-center">
-                    <div className="text-xs font-medium text-gray-500 mb-1">
-                      {new Date(shift.date + 'T00:00:00').toLocaleDateString('en-au', { weekday: 'short' })}
+                {getWeekDates(roster.week_start_date).map((date) => {
+                  const dayShifts = roster.shifts.filter((s) => s.date === date);
+                  const label = getDayLabel(date);
+                  return (
+                    <div key={date} className="border rounded-lg p-3 text-center min-h-[80px]">
+                      <div className="text-xs font-medium text-gray-500">{label.day}</div>
+                      <div className="text-[10px] text-gray-400">{label.date}</div>
+                      <div className="mt-2 space-y-1">
+                        {dayShifts.flatMap((shift) =>
+                          shift.assignments.map((a) => (
+                            <div key={`${shift.id}-${a.id}`} className={`text-[10px] rounded px-1 py-1 ${SHIFT_COLORS[shift.shift_type || 'custom'] || 'bg-gray-100'}`}>
+                              <span className="font-medium">{a.worker_name}</span>
+                              <div className="opacity-70">
+                                {(a.start_time || shift.start_time)?.slice(0, 5)} – {(a.end_time || shift.end_time)?.slice(0, 5)}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-400">{shift.date}</div>
-                    <div className="mt-2 space-y-1">
-                      {shift.assignments.map((a) => (
-                        <div key={a.id} className="text-xs bg-brand-50 text-brand-700 rounded px-1 py-1">
-                          <span className="font-medium">{a.worker_name}</span>
-                          <div className="text-brand-500 text-[10px]">
-                            {a.start_time?.slice(0,5) || shift.start_time?.slice(0,5)} - {a.end_time?.slice(0,5) || shift.end_time?.slice(0,5)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

@@ -319,8 +319,9 @@ export default function ManagerTimesheetsPage() {
                             <th className="text-left px-4 py-3 font-medium text-gray-500">Worker</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
                             <th className="text-center px-4 py-3 font-medium text-gray-500">Present</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-500">Start</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-500">End</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-400 text-xs">Scheduled</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-500">Actual Start</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-500">Actual End</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-500">Hours</th>
                           </tr>
                         </thead>
@@ -336,6 +337,11 @@ export default function ManagerTimesheetsPage() {
                                 <input type="checkbox" checked={row.is_present}
                                   onChange={(e) => updateRow(idx, 'is_present', e.target.checked)}
                                   className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-xs text-gray-400">
+                                  {row.start_time?.slice(0,5) || '--:--'} – {row.end_time?.slice(0,5) || '--:--'}
+                                </div>
                               </td>
                               <td className="px-4 py-3">
                                 {row.is_present ? (
@@ -384,8 +390,9 @@ export default function ManagerTimesheetsPage() {
                       <th className="text-left px-6 py-3 font-medium text-gray-500">Worker</th>
                       <th className="text-left px-6 py-3 font-medium text-gray-500">Date</th>
                       <th className="text-center px-6 py-3 font-medium text-gray-500">Present</th>
-                      <th className="text-left px-6 py-3 font-medium text-gray-500">Start</th>
-                      <th className="text-left px-6 py-3 font-medium text-gray-500">End</th>
+                      <th className="text-left px-6 py-3 font-medium text-gray-400 text-xs">Scheduled</th>
+                      <th className="text-left px-6 py-3 font-medium text-gray-500">Actual Start</th>
+                      <th className="text-left px-6 py-3 font-medium text-gray-500">Actual End</th>
                       <th className="text-left px-6 py-3 font-medium text-gray-500">Hours</th>
                     </tr>
                   </thead>
@@ -399,6 +406,11 @@ export default function ManagerTimesheetsPage() {
                             e.is_present ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                           }`}>
                             {e.is_present ? 'Yes' : 'Absent'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-gray-400">
+                            {e.scheduled_start?.slice(0,5) || '—'} – {e.scheduled_end?.slice(0,5) || '—'}
                           </span>
                         </td>
                         <td className="px-6 py-4">{e.start_time || '—'}</td>

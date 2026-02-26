@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db import transaction
 from apps.permissions import IsAdmin, IsAdminOrShopManager, IsWorker
 from .models import Shift, ShiftAssignment, WeeklyRoster
 from .serializers import (
@@ -16,7 +17,7 @@ class WeeklyRosterViewSet(viewsets.ModelViewSet):
     Worker: view rosters for own shop.
     Admin: full access + add emergency worker.
     """
-    filterset_fields = ['week_start_date', 'shop']
+    filterset_fields = ['week_start_date', 'shop', 'status']
     ordering_fields = ['week_start_date']
 
     def get_queryset(self):
@@ -65,6 +66,51 @@ class WeeklyRosterViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         roster = serializer.save()
+        return Response(WeeklyRosterSerializer(roster).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrShopManager])
+    def publish(self, request, pk=None):
+        """Publish roster → lock editing and auto-create attendance entries."""
+        roster = self.get_object()
+        if roster.status == 'published':
+            return Response(
+                {'error': 'Roster is already published'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.timesheets.models import TimesheetEntry
+
+        with transaction.atomic():
+            roster.status = 'published'
+            roster.save()
+
+            # Auto-create attendance entries for all assigned workers
+            for shift in roster.shifts.prefetch_related('assignments__worker').all():
+                for assignment in shift.assignments.all():
+                    w_start = assignment.start_time or shift.start_time
+                    w_end = assignment.end_time or shift.end_time
+                    TimesheetEntry.objects.update_or_create(
+                        worker=assignment.worker,
+                        date=shift.date,
+                        defaults={
+                            'shop': roster.shop,
+                            'scheduled_start': w_start,
+                            'scheduled_end': w_end,
+                            'start_time': w_start,
+                            'end_time': w_end,
+                            'is_present': True,
+                            'recorded_by': request.user,
+                        },
+                    )
+
+        return Response(WeeklyRosterSerializer(roster).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrShopManager])
+    def unpublish(self, request, pk=None):
+        """Unpublish roster → allow editing again."""
+        roster = self.get_object()
+        roster.status = 'draft'
+        roster.save()
         return Response(WeeklyRosterSerializer(roster).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])

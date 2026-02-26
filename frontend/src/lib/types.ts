@@ -29,6 +29,7 @@ export interface InventoryItem {
   name: string;
   unit: string;
   price: number;
+  category: 'warehouse' | 'procurement';
   is_active: boolean;
 }
 
@@ -71,6 +72,7 @@ export interface Shift {
   shop_name: string;
   roster: number | null;
   date: string;
+  shift_type: 'opening' | 'afternoon' | 'custom';
   start_time: string;
   end_time: string;
   assignments: ShiftAssignment[];
@@ -84,6 +86,7 @@ export interface WeeklyRoster {
   shop_name: string;
   week_start_date: string;
   notes: string;
+  status: 'draft' | 'published';
   shifts: Shift[];
   created_by: number;
   created_by_name: string;
@@ -98,6 +101,8 @@ export interface TimesheetEntry {
   worker_name: string;
   date: string;
   is_present: boolean;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
   start_time: string | null;
   end_time: string | null;
   hours_worked: number;
@@ -140,6 +145,43 @@ export interface ProcurementRequest {
   delivery_date: string | null;
   handled_by: number | null;
   handled_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+  is_active: boolean;
+}
+
+export interface ProcurementOrderItem {
+  id: number;
+  item: number;
+  item_name: string;
+  item_unit: string;
+  quantity: number;
+  price: number;
+}
+
+export interface ProcurementOrder {
+  id: number;
+  shop: number;
+  shop_name: string;
+  supplier: number;
+  supplier_name: string;
+  requested_by: number;
+  requested_by_name: string;
+  date: string;
+  status: 'pending' | 'ordered' | 'delivered' | 'cancelled';
+  notes: string;
+  invoice_image: string | null;
+  total: number;
+  handled_by: number | null;
+  handled_by_name: string;
+  items: ProcurementOrderItem[];
   created_at: string;
   updated_at: string;
 }

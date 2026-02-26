@@ -17,7 +17,8 @@ class ShiftSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shift
         fields = [
-            'id', 'shop', 'shop_name', 'roster', 'date', 'start_time', 'end_time',
+            'id', 'shop', 'shop_name', 'roster', 'date', 'shift_type',
+            'start_time', 'end_time',
             'assignments', 'created_by', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
@@ -28,7 +29,7 @@ class ShiftCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Shift
-        fields = ['id', 'date', 'start_time', 'end_time', 'assignments']
+        fields = ['id', 'date', 'shift_type', 'start_time', 'end_time', 'assignments']
 
     def create(self, validated_data):
         assignments_data = validated_data.pop('assignments')
@@ -46,6 +47,9 @@ class ShiftCreateSerializer(serializers.ModelSerializer):
 class WeeklyRosterShiftSerializer(serializers.Serializer):
     """Used inside roster creation to define shifts for each day."""
     date = serializers.DateField()
+    shift_type = serializers.ChoiceField(
+        choices=Shift.ShiftType.choices, default='custom'
+    )
     start_time = serializers.TimeField()
     end_time = serializers.TimeField()
     assignments = serializers.ListField(child=serializers.DictField())
@@ -59,7 +63,7 @@ class WeeklyRosterSerializer(serializers.ModelSerializer):
     class Meta:
         model = WeeklyRoster
         fields = [
-            'id', 'shop', 'shop_name', 'week_start_date', 'notes',
+            'id', 'shop', 'shop_name', 'week_start_date', 'notes', 'status',
             'shifts', 'created_by', 'created_by_name', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
@@ -88,6 +92,7 @@ class WeeklyRosterCreateSerializer(serializers.Serializer):
             created_by=user,
             week_start_date=validated_data['week_start_date'],
             notes=validated_data.get('notes', ''),
+            status='draft',
         )
         for shift_data in shifts_data:
             assignments_data = shift_data.pop('assignments')
@@ -116,6 +121,10 @@ class WeeklyRosterUpdateSerializer(serializers.Serializer):
     shifts = WeeklyRosterShiftSerializer(many=True)
 
     def update(self, instance, validated_data):
+        if instance.status == 'published':
+            raise serializers.ValidationError(
+                'Cannot edit a published roster. Unpublish first.'
+            )
         user = self.context['request'].user
         shifts_data = validated_data.pop('shifts', [])
         instance.notes = validated_data.get('notes', instance.notes)
